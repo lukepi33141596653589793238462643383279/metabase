@@ -128,7 +128,7 @@
   (try
     (mt/with-premium-features #{:semantic-search}
       (semantic.tu/with-test-db-defaults!
-        (with-redefs [semantic.pgvector-api/index-documents! (constantly nil)]
+        (mt/with-dynamic-fn-redefs [semantic.pgvector-api/index-documents! (constantly nil)]
           (semantic.core/init! (semantic.tu/mock-documents) nil)
           (testing "migration table has expected columns"
             (is (map-contains-keys?
@@ -229,7 +229,7 @@
 (deftest dynamic-schema-migration-test
   (mt/with-premium-features #{:semantic-search}
     (semantic.tu/with-test-db-defaults!
-      (with-redefs [semantic.pgvector-api/index-documents! (constantly nil)]
+      (mt/with-dynamic-fn-redefs [semantic.pgvector-api/index-documents! (constantly nil)]
         (semantic.core/init! (semantic.tu/mock-documents) nil)
              ;; add column to index table
         (let [original-dynamic-schema semantic.db.migration.impl/dynamic-schema-version]

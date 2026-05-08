@@ -65,7 +65,7 @@
                                             :severity         "critical"
                                             :match_status     "active"
                                             :last_notified_at (t/minus (t/offset-date-time) (t/hours 25))})]
-            (with-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
+            (mt/with-dynamic-fn-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
               (task.sync/send-repeat-notifications!)
               (is (= ["SC-REPEAT-001"] @notified))))))
 
@@ -76,7 +76,7 @@
                                             :severity         "critical"
                                             :match_status     "active"
                                             :last_notified_at (t/minus (t/offset-date-time) (t/hours 12))})]
-            (with-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
+            (mt/with-dynamic-fn-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
               (task.sync/send-repeat-notifications!)
               (is (empty? @notified))))))
 
@@ -87,7 +87,7 @@
                                             :severity         "high"
                                             :match_status     "active"
                                             :last_notified_at (t/minus (t/offset-date-time) (t/days 8))})]
-            (with-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
+            (mt/with-dynamic-fn-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
               (task.sync/send-repeat-notifications!)
               (is (= ["SC-REPEAT-003"] @notified))))))
 
@@ -98,7 +98,7 @@
                                             :severity         "high"
                                             :match_status     "active"
                                             :last_notified_at (t/minus (t/offset-date-time) (t/days 1))})]
-            (with-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
+            (mt/with-dynamic-fn-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
               (task.sync/send-repeat-notifications!)
               (is (empty? @notified))))))
 
@@ -109,7 +109,7 @@
                                             :severity         "low"
                                             :match_status     "active"
                                             :last_notified_at nil})]
-            (with-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
+            (mt/with-dynamic-fn-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
               (task.sync/send-repeat-notifications!)
               (is (= ["SC-REPEAT-005"] @notified))))))
 
@@ -120,7 +120,7 @@
                                             :severity         "medium"
                                             :match_status     "active"
                                             :last_notified_at (t/minus (t/offset-date-time) (t/days 8))})]
-            (with-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
+            (mt/with-dynamic-fn-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
               (task.sync/send-repeat-notifications!)
               (is (= ["SC-MED-001"] @notified))))))
 
@@ -131,7 +131,7 @@
                                             :severity         "low"
                                             :match_status     "active"
                                             :last_notified_at (t/minus (t/offset-date-time) (t/days 5))})]
-            (with-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
+            (mt/with-dynamic-fn-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
               (task.sync/send-repeat-notifications!)
               (is (empty? @notified))))))
 
@@ -142,7 +142,7 @@
                                             :severity         "high"
                                             :match_status     "error"
                                             :last_notified_at nil})]
-            (with-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
+            (mt/with-dynamic-fn-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
               (task.sync/send-repeat-notifications!)
               (is (= ["SC-ERR-001"] @notified)))))))))
 
@@ -159,7 +159,7 @@
                                             :last_notified_at nil
                                             :acknowledged_by  user-id
                                             :acknowledged_at  (mi/now)})]
-            (with-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
+            (mt/with-dynamic-fn-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
               (task.sync/send-repeat-notifications!)
               (is (empty? @notified))))))
 
@@ -170,7 +170,7 @@
                                             :severity         "critical"
                                             :match_status     "not_affected"
                                             :last_notified_at nil})]
-            (with-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
+            (mt/with-dynamic-fn-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
               (task.sync/send-repeat-notifications!)
               (is (empty? @notified))))))
 
@@ -181,7 +181,7 @@
                                             :severity         "critical"
                                             :match_status     "resolved"
                                             :last_notified_at nil})]
-            (with-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
+            (mt/with-dynamic-fn-redefs [notification/notify-advisory! (fn [a] (swap! notified conj (:advisory_id a)))]
               (task.sync/send-repeat-notifications!)
               (is (empty? @notified)))))))))
 
@@ -201,11 +201,11 @@
                                             :severity         "critical"
                                             :match_status     "active"
                                             :last_notified_at nil})]
-            (with-redefs [notification/notify-advisory! (fn [a]
-                                                          (swap! call-count inc)
-                                                          (if (= 1 @call-count)
-                                                            (throw (ex-info "transient failure" {}))
-                                                            (swap! notified conj (:advisory_id a))))]
+            (mt/with-dynamic-fn-redefs [notification/notify-advisory! (fn [a]
+                                                                        (swap! call-count inc)
+                                                                        (if (= 1 @call-count)
+                                                                          (throw (ex-info "transient failure" {}))
+                                                                          (swap! notified conj (:advisory_id a))))]
               (task.sync/send-repeat-notifications!)
               ;; The second advisory should still be notified despite the first one failing
               (is (= 1 (count @notified))))))))))
@@ -260,7 +260,7 @@
                                         :severity     "critical"
                                         :match_status "active"})]
         (mt/with-temporary-setting-values [admin-email "boss@example.com"]
-          (with-redefs [settings/security-center-email-recipients (constantly custom-recip)]
+          (mt/with-dynamic-fn-redefs [settings/security-center-email-recipients (constantly custom-recip)]
             (with-send-redef (fn [notif & _] (reset! sent notif))
               (notification/notify-advisory! advisory)
               (let [email-handler (first (filter #(= :channel/email (:channel_type %)) (:handlers @sent)))
@@ -280,7 +280,7 @@
                                         :severity     "high"
                                         :match_status "active"})]
         (mt/with-temporary-setting-values [admin-email nil]
-          (with-redefs [settings/security-center-email-recipients (constantly custom-recip)]
+          (mt/with-dynamic-fn-redefs [settings/security-center-email-recipients (constantly custom-recip)]
             (with-send-redef (fn [notif & _] (reset! sent notif))
               (notification/notify-advisory! advisory)
               (let [email-handler (first (filter #(= :channel/email (:channel_type %)) (:handlers @sent)))
@@ -297,7 +297,7 @@
                                         :severity     "high"
                                         :match_status "active"})]
         (mt/with-temporary-setting-values [admin-email nil]
-          (with-redefs [settings/security-center-email-recipients (constantly custom-recip)]
+          (mt/with-dynamic-fn-redefs [settings/security-center-email-recipients (constantly custom-recip)]
             (with-send-redef (fn [notif & _] (reset! sent notif))
               (notification/notify-advisory! advisory)
               (let [email-handler (first (filter #(= :channel/email (:channel_type %)) (:handlers @sent)))]
@@ -313,7 +313,7 @@
                                         :severity     "critical"
                                         :match_status "active"})]
         (mt/with-temporary-setting-values [slack-token-valid? true]
-          (with-redefs [settings/security-center-slack-channel (constantly "#security-alerts")]
+          (mt/with-dynamic-fn-redefs [settings/security-center-slack-channel (constantly "#security-alerts")]
             (with-send-redef (fn [notif & _] (reset! sent notif))
               (notification/notify-advisory! advisory)
               (let [slack-handler (first (filter #(= :channel/slack (:channel_type %)) (:handlers @sent)))]
@@ -328,7 +328,7 @@
                      (advisory-fixture {:advisory_id  "SC-SLACK-002"
                                         :severity     "low"
                                         :match_status "active"})]
-        (with-redefs [settings/security-center-slack-channel (constantly nil)]
+        (mt/with-dynamic-fn-redefs [settings/security-center-slack-channel (constantly nil)]
           (with-send-redef (fn [notif & _] (reset! sent notif))
             (notification/notify-advisory! advisory)
             (is (empty? (filter #(= :channel/slack (:channel_type %)) (:handlers @sent))))))))))
@@ -341,7 +341,7 @@
                                         :severity     "medium"
                                         :match_status "active"})]
         (mt/with-temporary-setting-values [slack-token-valid? false]
-          (with-redefs [settings/security-center-slack-channel (constantly "#alerts")]
+          (mt/with-dynamic-fn-redefs [settings/security-center-slack-channel (constantly "#alerts")]
             (with-send-redef (fn [notif & _] (reset! sent notif))
               (notification/notify-advisory! advisory)
               (is (empty? (filter #(= :channel/slack (:channel_type %)) (:handlers @sent)))))))))))
@@ -372,8 +372,8 @@
 
 (deftest send-test-notification-throws-when-no-channels-test
   (testing "send-test-notification! throws when no channels are configured"
-    (with-redefs [channel.settings/email-configured?           (constantly false)
-                  settings/security-center-slack-channel        (constantly nil)]
+    (mt/with-dynamic-fn-redefs [channel.settings/email-configured?           (constantly false)
+                                settings/security-center-slack-channel        (constantly nil)]
       (is (thrown-with-msg? Exception #"No notification channels are configured"
                             (notification/send-test-notification!))))))
 

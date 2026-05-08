@@ -8,6 +8,7 @@
    [metabase-enterprise.semantic-search.index :as semantic.index]
    [metabase-enterprise.semantic-search.index-metadata :as semantic.index-metadata]
    [metabase-enterprise.semantic-search.test-util :as semantic.tu]
+   [metabase.test :as mt]
    [metabase.util.json :as json]
    [next.jdbc :as jdbc]
    [next.jdbc.result-set :as jdbc.rs])
@@ -255,7 +256,7 @@
 
           (vreset! clock-ref (.plus (.instant clock) semantic.dlq/initial-backoff))
 
-          (with-redefs [semantic.index/upsert-index! (fn [& _] (throw (RuntimeException. "Forced failure")))]
+          (mt/with-dynamic-fn-redefs [semantic.index/upsert-index! (fn [& _] (throw (RuntimeException. "Forced failure")))]
             (let [result (semantic.dlq/dlq-retry-loop! pgvector index-metadata index @index-id-ref
                                                        :max-run-duration (Duration/ofSeconds 1)
                                                        :max-batch-size 10)]
@@ -329,14 +330,14 @@
           (is (= {} (frequencies (map :gate_id (:failures outcome)))))))
 
       (testing "failures across upsert/delete are aggregated"
-        (with-redefs [semantic.index/upsert-index!      (fn [& _] (throw (RuntimeException. "Upsert failed")))
-                      semantic.index/delete-from-index! (fn [& _] (throw (RuntimeException. "Delete failed")))]
+        (mt/with-dynamic-fn-redefs [semantic.index/upsert-index!      (fn [& _] (throw (RuntimeException. "Upsert failed")))
+                                    semantic.index/delete-from-index! (fn [& _] (throw (RuntimeException. "Delete failed")))]
           (let [outcome (semantic.dlq/try-batch! pgvector index gate-docs)]
             (is (= {"card_1" 1 "card_2" 1} (frequencies (map (comp :gate_id :dlq-entry) (:failures outcome)))))
             (is (= {} (frequencies (map :id (:successes outcome))))))))
 
       (testing "partial failure is representable"
-        (with-redefs [semantic.index/upsert-index! (fn [& _] (throw (RuntimeException. "Upsert failed")))]
+        (mt/with-dynamic-fn-redefs [semantic.index/upsert-index! (fn [& _] (throw (RuntimeException. "Upsert failed")))]
           (let [outcome (semantic.dlq/try-batch! pgvector index gate-docs)]
             (is (= {"card_1" 1} (frequencies (map (comp :gate_id :dlq-entry) (:failures outcome)))))
             (is (= {"card_2" 1} (frequencies (map :id (:successes outcome))))))))
