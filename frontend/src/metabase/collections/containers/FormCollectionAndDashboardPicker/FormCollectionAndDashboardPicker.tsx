@@ -3,7 +3,11 @@ import type { HTMLAttributes } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { t } from "ttag";
 
-import { useGetCollectionQuery, useLazyGetDashboardQuery } from "metabase/api";
+import {
+  skipToken,
+  useGetCollectionQuery,
+  useLazyGetDashboardQuery,
+} from "metabase/api";
 import {
   type EntityType,
   canonicalCollectionId,
@@ -25,10 +29,9 @@ import {
 } from "metabase/common/components/Pickers";
 import { SnippetCollectionName } from "metabase/common/components/SnippetCollectionName";
 import { useUniqueId } from "metabase/common/hooks/use-unique-id";
-import { Collections } from "metabase/entities/collections";
 import { getCollectionIcon } from "metabase/entities/collections/utils";
 import { Dashboards } from "metabase/entities/dashboards";
-import { useSelector } from "metabase/lib/redux";
+import { useSelector } from "metabase/redux";
 import { Button, Flex, Icon } from "metabase/ui";
 import type { CollectionId, DashboardId } from "metabase-types/api";
 
@@ -121,19 +124,19 @@ export function FormCollectionAndDashboardPicker({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
-  const openCollection = useSelector((state) =>
-    Collections.selectors.getObject(state, { entityId: "root" }),
-  );
+  const { data: openCollection } = useGetCollectionQuery({ id: "root" });
 
-  const selectedItem = useSelector(
-    (state) =>
-      Dashboards.selectors.getObject(state, {
-        entityId: dashboardIdInput.value,
-      }) ||
-      Collections.selectors.getObject(state, {
-        entityId: collectionIdInput.value,
-      }),
+  const selectedDashboard = useSelector((state) =>
+    Dashboards.selectors.getObject(state, {
+      entityId: dashboardIdInput.value,
+    }),
   );
+  const { data: selectedCollection } = useGetCollectionQuery(
+    collectionIdInput.value != null
+      ? { id: collectionIdInput.value }
+      : skipToken,
+  );
+  const selectedItem = selectedDashboard || selectedCollection;
 
   const namespace = selectedItem?.namespace;
 
@@ -159,6 +162,9 @@ export function FormCollectionAndDashboardPicker({
     filterPersonalCollections !== "only" ||
     isOpenCollectionInPersonalCollection;
 
+  const canCreateDashboards =
+    collectionPickerModalProps?.models?.includes("dashboard") ?? false;
+
   const options = useMemo<EntityPickerOptions>(
     () => ({
       hasPersonalCollections: filterPersonalCollections !== "exclude",
@@ -169,12 +175,18 @@ export function FormCollectionAndDashboardPicker({
       hasConfirmButtons: true,
       namespaces: type === "snippet-collections" ? ["snippets"] : undefined,
       canCreateCollections: showCreateNewCollectionOption,
+      canCreateDashboards,
       confirmButtonText: (item) =>
         item?.model === "dashboard"
           ? t`Select this dashboard`
           : t`Select this collection`,
     }),
-    [filterPersonalCollections, type, showCreateNewCollectionOption],
+    [
+      filterPersonalCollections,
+      type,
+      showCreateNewCollectionOption,
+      canCreateDashboards,
+    ],
   );
 
   const [fetchDashboard] = useLazyGetDashboardQuery();

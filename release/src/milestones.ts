@@ -1,7 +1,6 @@
 import fs from "fs";
 
 import { graphql } from "@octokit/graphql";
-import _ from "underscore";
 
 import { hiddenLabels, nonUserFacingLabels } from "./constants";
 import {
@@ -248,13 +247,16 @@ export async function setMilestoneForCommits({
   console.log('Next milestone:', nextMilestone.title);
 
   // figure out issue or PR
-  const PRsToCheck = _.uniq(
+  const PRsToCheck = uniq(
     commitMessages
       .flatMap(getPRsFromCommitMessage)
       .filter(isNotNull)
   );
   if (!PRsToCheck.length) {
-    throw new Error('No PRs found in commit messages');
+    // Not every commit on a release branch is a squash-merged PR (e.g. the
+    // version-bump commit from cutting the branch). Nothing to backfill here.
+    console.log('No PRs found in commit messages, skipping milestone backfill');
+    return;
   }
 
   console.log(`Checking ${PRsToCheck.length} PRs for issues to tag`);
@@ -270,7 +272,7 @@ export async function setMilestoneForCommits({
     })));
   }
 
-  const uniqueIssuesToTag = _.uniq(issuesToTag);
+  const uniqueIssuesToTag = uniq(issuesToTag);
 
   console.log(`Tagging ${uniqueIssuesToTag.length} issues with milestone ${nextMilestone.title}`)
 
@@ -359,7 +361,7 @@ export async function checkMilestoneForRelease({
       })));
     }
 
-    const uniqueIssues = _.uniq(issueNumbers.filter(isNotNull));
+    const uniqueIssues = uniq(issueNumbers.filter(isNotNull));
     commitIssueMap[commit.sha] = uniqueIssues;
 
     uniqueIssues.forEach(issueNumber => {
@@ -603,4 +605,8 @@ async function addIssueToProject({
       )
       { projectV2Item { id } }
     }`);
+}
+
+function uniq<T>(array: T[]) {
+  return Array.from<T>(new Set(array));
 }

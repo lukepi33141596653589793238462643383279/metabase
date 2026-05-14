@@ -1,4 +1,5 @@
 (ns ^:mb/driver-tests metabase.query-processor.middleware.metrics-test
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.query-processor.middleware.metrics-test]}}}}}}
   (:require
    [clojure.set :as set]
    [clojure.test :refer [deftest is testing]]
@@ -685,7 +686,7 @@
                                                 [:field (meta/id :venues :price) {}]]]]]
                                  {:display-name "My Cool Aggregation"}]]}
           expand-macros (fn [mbql-query]
-                          (lib.convert/->legacy-MBQL (adjust (lib/query mp (lib.convert/->pMBQL mbql-query)))))]
+                          (lib.convert/->legacy-MBQL (adjust (lib/query mp (lib.convert/->mbql5 mbql-query)))))]
       (comment
         (testing "nested 1 level"
           (is (=? (lib.tu.macros/mbql-query nil

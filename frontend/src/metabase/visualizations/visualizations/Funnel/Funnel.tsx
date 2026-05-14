@@ -4,7 +4,7 @@ import { t } from "ttag";
 import _ from "underscore";
 
 import CS from "metabase/css/core/index.css";
-import { formatNullable } from "metabase/lib/formatting/nullable";
+import { formatNullable } from "metabase/utils/formatting/nullable";
 import ChartCaption from "metabase/visualizations/components/ChartCaption";
 import { TransformedVisualization } from "metabase/visualizations/components/TransformedVisualization";
 import { ChartSettingOrderedSimple } from "metabase/visualizations/components/settings/ChartSettingOrderedSimple";
@@ -84,7 +84,7 @@ const FunnelViz: VisualizationDefinition = {
   hasEmptyState: true,
 
   settings: {
-    ...columnSettings({ hidden: true }),
+    ...columnSettings({ getHidden: () => true }),
     ...dimensionSetting("funnel.dimension", {
       // eslint-disable-next-line ttag/no-module-declaration -- see metabase#5504
       section: t`Data`,

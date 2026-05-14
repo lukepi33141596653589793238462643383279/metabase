@@ -1,4 +1,5 @@
 (ns metabase.notification.send-test
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.notification.send-test]}}}}}}
   (:require
    [clojure.test :refer :all]
    [java-time.api :as t]
@@ -399,7 +400,7 @@
                    [{:channel_type notification.tu/test-channel-type
                      :channel_id   (:id chn)
                      :recipients   [{:type :notification-recipient/user :user_id (mt/user->id :crowberto)}]}])]
-            (with-redefs [notification.send/default-retry-config (assoc @#'notification.send/default-retry-config :max-attempts 1)
+            (with-redefs [notification.send/default-retry-config (assoc @#'notification.send/default-retry-config :max-retries 1)
                           channel/send! (fn [& _]
                                           (throw (Exception. "test-channel-exception")))]
               (#'notification.send/send-notification-sync! n)

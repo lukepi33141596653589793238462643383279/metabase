@@ -650,7 +650,7 @@
   [executions]
   (mapv (fn [qe-group]
           {:group (str qe-group) :value (get executions qe-group)})
-        [:interactive_embed :internal :public_link :sdk_embed :static_embed]))
+        [:interactive_embed :internal :public_link :sdk_embed :simple_embed :static_embed]))
 
 (mu/defn- snowplow-grouped-metrics
   :- [:sequential
@@ -849,6 +849,11 @@
    {:name      :whitelabel
     :available (premium-features/enable-whitelabeling?)
     :enabled   (whitelabeling-in-use?)}
+   {:name      :custom-viz
+    :available (premium-features/enable-custom-viz?)
+    :enabled   (and config/ee-available?
+                    (premium-features/enable-custom-viz?)
+                    (t2/exists? :model/CustomVizPlugin))}
    {:name      :csv-upload
     :available (csv-upload-available?)
     :enabled   (t2/exists? :model/Database :uploads_enabled true)}
@@ -905,9 +910,6 @@
    {:name      :cache-preemptive
     :available (premium-features/enable-preemptive-caching?)
     :enabled   (t2/exists? :model/CacheConfig :refresh_automatically true)}
-   {:name      :metabot-v3
-    :available (premium-features/enable-metabot-v3?)
-    :enabled   (premium-features/enable-metabot-v3?)}
    {:name      :remote-sync
     :available (premium-features/enable-remote-sync?)
     :enabled   (premium-features/enable-remote-sync?)}
@@ -937,12 +939,12 @@
    {:name      :support-users
     :available (premium-features/enable-support-users?)
     :enabled   (premium-features/enable-support-users?)}
-   {:name      :workspaces
-    :available (premium-features/enable-workspaces?)
-    :enabled   (premium-features/enable-workspaces?)}
    {:name      :writable-connection
     :available (premium-features/enable-writable-connection?)
-    :enabled   (premium-features/enable-writable-connection?)}])
+    :enabled   (premium-features/enable-writable-connection?)}
+   {:name      :ai-controls
+    :available (premium-features/enable-ai-controls?)
+    :enabled   (premium-features/enable-ai-controls?)}])
 
 (defn- snowplow-features
   []

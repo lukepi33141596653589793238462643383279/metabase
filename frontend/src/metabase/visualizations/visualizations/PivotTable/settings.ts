@@ -2,7 +2,7 @@ import { getIn } from "icepick";
 import { t } from "ttag";
 import _ from "underscore";
 
-import { displayNameForColumn } from "metabase/lib/formatting";
+import { displayNameForColumn } from "metabase/utils/formatting";
 import { ChartSettingIconRadio } from "metabase/visualizations/components/settings/ChartSettingIconRadio";
 import { ChartSettingsTableFormatting } from "metabase/visualizations/components/settings/ChartSettingsTableFormatting";
 import {
@@ -52,9 +52,9 @@ export const getTitleForColumn = (
 };
 
 export const settings = {
-  ...columnSettings({ hidden: true }),
+  ...columnSettings({ getHidden: () => true }),
   [COLLAPSED_ROWS_SETTING]: {
-    hidden: true,
+    getHidden: () => true,
     readDependencies: [COLUMN_SPLIT_SETTING],
     getValue: (
       [{ data }]: Series,

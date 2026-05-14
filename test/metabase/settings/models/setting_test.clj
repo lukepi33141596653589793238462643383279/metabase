@@ -247,6 +247,17 @@
              #"Cannot initialize setting before the db is set up"
              (setting/get :test-setting-custom-init)))))))
 
+(deftest discard-setting-changes-with-init-test
+  (testing "discard-setting-changes correctly handles settings with :init"
+    (clear-setting-if-leak!)
+    (let [value-inside (atom nil)]
+      (mt/discard-setting-changes [:test-setting-custom-init]
+        (reset! value-inside (test-setting-custom-init))
+        (testing "the setting returns its initialized value inside the macro, not nil"
+          (is (some? @value-inside))))
+      (testing "after the macro, the setting's initialized value is preserved (not re-initialized)"
+        (is (= @value-inside (test-setting-custom-init)))))))
+
 (def ^:private base-options
   {:setter   :none
    :default  "totally-basic"})
@@ -563,6 +574,12 @@
          (test-json-setting! {:a 100, :b 200})))
   (is (= {:a 100, :b 200}
          (test-json-setting))))
+
+(deftest db-stored-value-test
+  (testing "should expose the raw DB/cache value through the public API"
+    (is (= "raw-value"
+           (with-redefs [setting/db-or-cache-value (constantly "raw-value")]
+             (setting/db-stored-value :test-setting-1))))))
 
 ;;; -------------------------------------------------- CSV Settings --------------------------------------------------
 
@@ -1910,3 +1927,21 @@
     (mt/with-temp-env-var-value! [mb-test-setting-with-deprecated-name "ENV_PRIMARY"]
       (with-setting-row-in-db [:old-test-setting-name "DB_LEGACY"]
         (is (= "ENV_PRIMARY" (test-setting-with-deprecated-name)))))))
+
+(deftest get-raw-value-source-test
+  (testing "Returns :default when only the default is set"
+    (mt/with-temporary-setting-values [test-setting-2 nil]
+      (is (= :default (setting/get-raw-value-source :test-setting-2)))))
+  (testing "Returns nil when no value is available from any source"
+    (mt/with-temporary-setting-values [test-setting-1 nil]
+      (is (nil? (setting/get-raw-value-source :test-setting-1)))))
+  (testing "Returns :database when set via the database"
+    (mt/with-temporary-setting-values [test-setting-1 "DB_VALUE"]
+      (is (= :database (setting/get-raw-value-source :test-setting-1)))))
+  (testing "Returns :env when provided via env var"
+    (mt/with-temp-env-var-value! [mb-test-setting-1 "ENV_VALUE"]
+      (is (= :env (setting/get-raw-value-source :test-setting-1)))))
+  (testing "Env var takes precedence over database value"
+    (mt/with-temporary-setting-values [test-setting-1 "DB_VALUE"]
+      (mt/with-temp-env-var-value! [mb-test-setting-1 "ENV_VALUE"]
+        (is (= :env (setting/get-raw-value-source :test-setting-1)))))))

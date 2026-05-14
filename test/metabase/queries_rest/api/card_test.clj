@@ -1,5 +1,7 @@
 (ns ^:mb/driver-tests metabase.queries-rest.api.card-test
   "Tests for /api/card endpoints."
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.queries-rest.api.card-test]}
+                                                            metabase.test.data/run-mbql-query {:namespaces [metabase.queries-rest.api.card-test]}}}}}}
   (:require
    [clojure.data.csv :as csv]
    [clojure.set :as set]
@@ -104,9 +106,9 @@
     :query    {:source-table (u/the-id table-or-id)
                :aggregation  [[:count]]}}))
 
-(defn pmbql-count-query
+(defn mbql5-count-query
   ([]
-   (pmbql-count-query (mt/id) (mt/id :venues)))
+   (mbql5-count-query (mt/id) (mt/id :venues)))
 
   ([db-or-id table-or-id]
    (let [metadata-provider (lib-be/application-database-metadata-provider (u/the-id db-or-id))
@@ -310,8 +312,8 @@
           (mt/user-http-request :crowberto :post 202 (str "card/" (u/the-id card-1) "/query")
                                 {:request-options {:headers {"x-metabase-client" client-string
                                                              "x-metabase-client-version" version-string}}}))
-        (is (= {:embedding_client client-string, :embedding_version version-string}
-               (t2/select-one [:model/ViewLog :embedding_client :embedding_version] :model "card" :model_id (u/the-id card-1))))))))
+        (is (= {:embedding_client client-string, :embedding_sdk_version version-string}
+               (t2/select-one [:model/ViewLog :embedding_client :embedding_sdk_version] :model "card" :model_id (u/the-id card-1))))))))
 
 (deftest embedding-sdk-info-saves-query-execution
   (testing "GET /api/card with embedding headers set"
@@ -324,10 +326,10 @@
       (mt/user-http-request :crowberto :post 202 (format "card/%d/query" (u/the-id card-1))
                             {:request-options {:headers {"x-metabase-client" "client-B"
                                                          "x-metabase-client-version" "2"}}})
-      (is (=? {:embedding_client "client-B", :embedding_version "2"}
+      (is (=? {:embedding_client "client-B", :embedding_sdk_version "2"}
               ;; The query metadata is handled asynchronously, so we need to poll until it's available:
               (tu/poll-until 2000
-                             (t2/select-one [:model/QueryExecution :embedding_client :embedding_version]
+                             (t2/select-one [:model/QueryExecution :embedding_client :embedding_sdk_version]
                                             :card_id (u/the-id card-1))))))))
 
 (deftest filter-by-bookmarked-test
@@ -732,7 +734,7 @@
             (perms/grant-collection-readwrite-permissions! (perms-group/all-users) collection)
             (mt/with-model-cleanup [:model/Card]
               (doseq [[mbql-version query] {"MBQL" (mbql-count-query)
-                                            "pMBQL" (pmbql-count-query)}]
+                                            "MBQL 5" (mbql5-count-query)}]
                 (testing mbql-version
                   (let [card (assoc (card-with-name-and-query (mt/random-name) query)
                                     :collection_id (u/the-id collection)
@@ -780,6 +782,27 @@
                                                           (-> edit-info
                                                               (update :id boolean)
                                                               (update :timestamp boolean)))))))))))))))))
+
+(deftest create-a-card-with-result-metadata-updates-recents-test
+  (testing "POST /api/card adds user-created questions to recents (UXW-3171)"
+    (mt/with-full-data-perms-for-all-users!
+      (mt/with-model-cleanup [:model/Card]
+        (t2/delete! :model/RecentViews :user_id (mt/user->id :rasta))
+        (let [card    (assoc (card-with-name-and-query) :result_metadata [])
+              card-id (:id (mt/user-http-request :rasta :post 200 "card" card))]
+          (is (= {:user_id  (mt/user->id :rasta)
+                  :model    "card"
+                  :model_id card-id}
+                 (t2/select-one [:model/RecentViews :user_id :model :model_id]
+                                :user_id  (mt/user->id :rasta)
+                                :model_id card-id
+                                :model    "card"))))
+        (testing "Cards saved without result metadata are not treated as viewed"
+          (let [card-id (:id (mt/user-http-request :rasta :post 200 "card" (card-with-name-and-query)))]
+            (is (nil? (t2/select-one :model/RecentViews
+                                     :user_id  (mt/user->id :rasta)
+                                     :model_id card-id
+                                     :model    "card")))))))))
 
 (deftest ^:parallel create-card-validation-test
   (testing "POST /api/card"
@@ -846,7 +869,7 @@
 
 (deftest create-and-update-metric-card-validation-test
   (testing "POST /api/card"
-    (let [query (pmbql-count-query)
+    (let [query (mbql5-count-query)
           card-name (mt/random-name)
           card (-> (card-with-name-and-query card-name query)
                    (assoc :type :metric))
@@ -3523,38 +3546,34 @@
             (is (not ((into #{} (mapcat identity) (:values response)) "The Virgil")))))))))
 
 (deftest field-filter-values-without-create-queries-permission-test
-  (testing "Users with view-data but without create-queries permission can still get field filter values (#70767)"
-    (let [param-key "name_param_id"]
-      (mt/with-temp [:model/Card field-filter-card
-                     {:dataset_query {:database (mt/id)
-                                      :type     :native
-                                      :native   {:query         "SELECT COUNT(*) FROM VENUES WHERE {{NAME}}"
-                                                 :template-tags {"NAME" {:id           param-key
-                                                                         :name         "NAME"
-                                                                         :display_name "Name"
-                                                                         :type         :dimension
-                                                                         :dimension    [:field (mt/id :venues :name) nil]
-                                                                         :required     true}}}}
-                      :name       "native card with field filter"
-                      :parameters [{:id     param-key
-                                    :type   :string/=
-                                    :target [:dimension [:template-tag "NAME"]]
-                                    :name   "Name"
-                                    :slug   "NAME"}]}]
-        (mt/with-no-data-perms-for-all-users!
-          (data-perms/set-database-permission! (perms-group/all-users) (mt/id) :perms/view-data :unrestricted)
-          (data-perms/set-database-permission! (perms-group/all-users) (mt/id) :perms/create-queries :no)
-          (testing "GET /api/card/:card-id/params/:param-key/values"
-            (let [response (mt/user-http-request :rasta :get 200
-                                                 (param-values-url field-filter-card param-key))]
-              (is (false? (:has_more_values response)))
-              (is (set/subset? #{["20th Century Cafe"] ["33 Taps"]}
-                               (-> response :values set)))))
-          (testing "GET /api/card/:card-id/params/:param-key/search/:query"
-            (let [response (mt/user-http-request :rasta :get 200
-                                                 (param-values-url field-filter-card param-key "bar"))]
-              (is (set/subset? #{["Barney's Beanery"] ["bigmista's barbecue"]}
-                               (-> response :values set))))))))))
+  (testing "Users without create-queries permission can still get field filter values for saved cards (#GHY-1605)"
+    (with-card-param-values-fixtures [{:keys [param-keys field-filter-card]}]
+      (mt/with-no-data-perms-for-all-users!
+        (data-perms/set-database-permission! (perms-group/all-users) (mt/id) :perms/view-data :unrestricted)
+        (data-perms/set-database-permission! (perms-group/all-users) (mt/id) :perms/create-queries :no)
+        (testing "GET /api/card/:card-id/params/:param-key/values"
+          (let [response (mt/user-http-request :rasta :get 200
+                                               (param-values-url field-filter-card (:field-values param-keys)))]
+            (is (false? (:has_more_values response)))
+            (is (set/subset? #{["20th Century Cafe"] ["33 Taps"]}
+                             (-> response :values set)))))
+        (testing "GET /api/card/:card-id/params/:param-key/search/:query"
+          (let [response (mt/user-http-request :rasta :get 200
+                                               (param-values-url field-filter-card
+                                                                 (:field-values param-keys)
+                                                                 "bar"))]
+            (is (set/subset? #{["Barney's Beanery"] ["bigmista's barbecue"]}
+                             (-> response :values set)))))))))
+
+(deftest param-fields-excluded-without-view-data-permission-test
+  (testing "param_fields should not include fields for tables where the user lacks view-data permission"
+    (with-card-param-values-fixtures [{:keys [field-filter-card]}]
+      (mt/with-no-data-perms-for-all-users!
+        (data-perms/set-database-permission! (perms-group/all-users) (mt/id) :perms/view-data :blocked)
+        (data-perms/set-database-permission! (perms-group/all-users) (mt/id) :perms/create-queries :no)
+        (let [response (mt/user-http-request :rasta :get 200
+                                             (format "card/%d" (:id field-filter-card)))]
+          (is (every? empty? (vals (:param_fields response)))))))))
 
 (deftest parameters-with-field-to-field-remapping-test
   (let [param-key "id/param"]
@@ -3734,15 +3753,15 @@
    (fn [card]
      (mt/user-http-request :crowberto :get 200 (str "card/" (:id card))))))
 
-(deftest save-mlv2-card-test
+(deftest save-mbql5-card-test
   (testing "POST /api/card"
-    (testing "Should be able to save a Card with an MLv2 query (#39024)"
+    (testing "Should be able to save a Card with an MBQL 5 query (#39024)"
       (mt/with-model-cleanup [:model/Card]
         (let [metadata-provider (mt/metadata-provider)
               venues            (lib.metadata/table metadata-provider (mt/id :venues))
               query             (lib/query metadata-provider venues)
               response          (mt/user-http-request :crowberto :post 200 "card"
-                                                      {:name                   "pMBQL Card"
+                                                      {:name                   "MBQL 5 Card"
                                                        :dataset_query          (dissoc query :lib/metadata)
                                                        :display                :table
                                                        :visualization_settings {}})]
@@ -3753,9 +3772,9 @@
                                                    :source-table (mt/id :venues)}]}}
                   response)))))))
 
-(deftest ^:parallel run-mlv2-card-query-test
+(deftest ^:parallel run-mbql5-card-query-test
   (testing "POST /api/card/:id/query"
-    (testing "Should be able to run a query for a Card with an MLv2 query (#39024)"
+    (testing "Should be able to run a query for a Card with an MBQL 5 query (#39024)"
       (let [metadata-provider (mt/metadata-provider)
             venues            (lib.metadata/table metadata-provider (mt/id :venues))
             query             (-> (lib/query metadata-provider venues)
@@ -4099,7 +4118,21 @@
     (testing "We can't create a dashboard internal card with a non-null :collection_position"
       (mt/user-http-request :crowberto :post 400 "card" (assoc (card-with-name-and-query)
                                                                :dashboard_id dash-id
-                                                               :collection_position 5)))))
+                                                               :collection_position 5)))
+    (testing "An explicit :size overrides the display-type default when autoplacing"
+      (let [card-id (:id (mt/user-http-request :crowberto :post 200 "card"
+                                               (assoc (card-with-name-and-query)
+                                                      :dashboard_id dash-id
+                                                      :size {:size_x 8 :size_y 5})))
+            dashcard (t2/select-one :model/DashboardCard :dashboard_id dash-id :card_id card-id)]
+        (is (= 8 (:size_x dashcard)))
+        (is (= 5 (:size_y dashcard)))))
+    (testing ":size is not persisted on the Card itself"
+      (let [card (mt/user-http-request :crowberto :post 200 "card"
+                                       (assoc (card-with-name-and-query)
+                                              :dashboard_id dash-id
+                                              :size {:size_x 3 :size_y 3}))]
+        (is (not (contains? card :size)))))))
 
 (deftest dashboard-internal-card-updates
   (mt/with-temp [:model/Collection {coll-id :id} {}
@@ -4836,3 +4869,56 @@
                           :aggregation  [["count"]]}}
               (-> (mt/user-http-request :crowberto :get 200 (str "card/" (:id card)) :legacy-mbql true)
                   :dataset_query))))))
+
+;;; +--------------------------------------------------------------------------------------------------+
+;;; |       result_metadata persistence with parameters (QUE2-502)                                     |
+;;; |       See also: metabase.dashboards-rest.api-test (dashboard endpoint tests for MBQL cards)      |
+;;; +--------------------------------------------------------------------------------------------------+
+
+(deftest parameterized-native-card-does-not-persist-result-metadata-test ; QUE2-502
+  (testing "POST /api/card/:id/query — native card with non-default parameter values should not update result_metadata"
+    (let [query (mt/native-query
+                 {:query         "SELECT COUNT(*) AS cnt FROM ORDERS WHERE PRODUCT_ID = {{product_id}}"
+                  :template-tags {"product_id" {:id           "_PRODUCT_ID_"
+                                                :name         "product_id"
+                                                :display-name "Product ID"
+                                                :type         :number
+                                                :required     true
+                                                :default      "1"}}})]
+      (mt/with-temp [:model/Card {card-id :id}
+                     {:dataset_query query}]
+        ;; First run without parameters to establish baseline metadata (uses default value)
+        (mt/user-http-request :rasta :post 202 (format "card/%d/query" card-id))
+        (let [baseline-metadata (t2/select-one-fn :result_metadata :model/Card :id card-id)]
+          (is (some? baseline-metadata)
+              "Baseline metadata should be established by default-value run")
+          ;; Run with a non-default parameter value — metadata should NOT be updated
+          (mt/user-http-request :rasta :post 202 (format "card/%d/query" card-id)
+                                {:parameters [{:id     "_PRODUCT_ID_"
+                                               :type   :number
+                                               :target [:variable [:template-tag "product_id"]]
+                                               :value  "50"}]})
+          (is (= baseline-metadata
+                 (t2/select-one-fn :result_metadata :model/Card :id card-id))
+              "result_metadata should not change when native card is run with non-default parameter values"))))))
+
+(deftest native-card-with-default-parameters-persists-result-metadata-test ; QUE2-502
+  (testing "POST /api/card/:id/query — native card with default parameter values SHOULD update result_metadata"
+    (let [query (mt/native-query
+                 {:query         "SELECT COUNT(*) AS cnt FROM ORDERS WHERE PRODUCT_ID = {{product_id}}"
+                  :template-tags {"product_id" {:id           "_PRODUCT_ID_"
+                                                :name         "product_id"
+                                                :display-name "Product ID"
+                                                :type         :number
+                                                :required     true
+                                                :default      "1"}}})]
+      (mt/with-temp [:model/Card {card-id :id}
+                     {:dataset_query query}]
+        ;; Run with the default value passed explicitly (as the frontend does)
+        (mt/user-http-request :rasta :post 202 (format "card/%d/query" card-id)
+                              {:parameters [{:id     "_PRODUCT_ID_"
+                                             :type   :number
+                                             :target [:variable [:template-tag "product_id"]]
+                                             :value  "1"}]})
+        (is (some? (t2/select-one-fn :result_metadata :model/Card :id card-id))
+            "result_metadata should be persisted when native card runs with default parameter values")))))

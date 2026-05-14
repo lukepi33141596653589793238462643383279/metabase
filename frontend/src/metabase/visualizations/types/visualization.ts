@@ -1,12 +1,13 @@
 import type { CSSProperties, ComponentType, ReactNode } from "react";
 
-import type { OptionsType } from "metabase/lib/formatting/types";
-import type { IconName, IconProps } from "metabase/ui";
+import type { Dispatch, QueryBuilderMode } from "metabase/redux/store";
+import type { IconProps } from "metabase/ui";
 import type { ColorGetter } from "metabase/ui/colors/types";
+import type { OptionsType } from "metabase/utils/formatting/types";
 import type {
   TextHeightMeasurer,
   TextWidthMeasurer,
-} from "metabase/visualizations/shared/types/measure-text";
+} from "metabase/utils/measure-text";
 import type {
   ClickActionModeGetter,
   ClickActionsMode,
@@ -23,6 +24,7 @@ import type {
   DashboardId,
   DatasetColumn,
   DatasetData,
+  IconName,
   RawSeries,
   RowValue,
   RowValues,
@@ -35,7 +37,6 @@ import type {
   VisualizationSettings,
 } from "metabase-types/api";
 import type { VisualizationDisplay } from "metabase-types/api/visualization";
-import type { Dispatch, QueryBuilderMode } from "metabase-types/store";
 
 import type { ChartSettingGoalInputProps } from "../components/settings/ChartSettingGoalInput";
 import type { ChartSettingMaxCategoriesProps } from "../components/settings/ChartSettingMaxCategories";
@@ -65,11 +66,15 @@ export type TableCellFormatter = (value: RowValue) => ReactNode;
 
 export type Extent = [number, number];
 
+export type CardSlownessStatus = "usually-fast" | "usually-slow" | boolean;
+
 export interface RenderingContext {
   getColor: ColorGetter;
   measureText: TextWidthMeasurer;
   measureTextHeight: TextHeightMeasurer;
   fontFamily: string;
+  /** Defaults to "light" when not provided. */
+  colorScheme?: "light" | "dark";
 
   theme: VisualizationTheme;
 }
@@ -104,6 +109,7 @@ export type OnChangeCardAndRunOpts = {
   nextCard: Card;
   seriesIndex?: number;
   objectId?: number;
+  drillName?: string;
 };
 
 export type OnChangeCardAndRun = (opts: OnChangeCardAndRunOpts) => void;
@@ -156,6 +162,7 @@ export interface VisualizationProps {
   // Is this visualization made by the visualizer
   isVisualizerCard: boolean;
   isEditing: boolean;
+  isMetricsViewer: boolean;
   isMobile: boolean;
   isSettings: boolean;
   showAllLegendItems?: boolean;
@@ -320,7 +327,6 @@ export type VisualizationSettingDefinition<
       : ComputedVisualizationSettings,
     extra?: SettingsExtra,
   ) => boolean;
-  hidden?: boolean;
   getHidden?: (
     object: T,
     settings: T extends DatasetColumn
@@ -387,11 +393,12 @@ export type CompleteVisualizationSettingDefinition<
   TProps extends Record<string, unknown> = Record<string, unknown>,
 > = Omit<
   VisualizationSettingDefinition<T, TValue, TProps>,
-  "getProps" | "getWrapperStyle"
+  "getProps" | "getWrapperStyle" | "getHidden"
 > & {
   id: string;
   style?: CSSProperties;
   props: Partial<TProps>;
+  hidden: boolean;
 };
 
 export type DatasetColumnSettingDefinition<
@@ -604,7 +611,9 @@ export type VisualizationDefinition = {
   identifier: VisualizationDisplay;
   aliases?: string[];
   iconName: IconName;
+  iconUrl?: string;
   hasEmptyState?: boolean;
+  isDev?: boolean; // is custom viz in dev mode
 
   maxMetricsSupported?: number;
   maxDimensionsSupported?: number;

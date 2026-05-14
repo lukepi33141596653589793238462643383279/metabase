@@ -7,6 +7,10 @@ const {
   CopyJsFromTmpDirectoryPlugin,
 } = require("./frontend/build/shared/rspack/copy-js-from-tmp-directory-plugin");
 
+const {
+  COMPRESSION_CONFIG,
+} = require("./frontend/build/shared/rspack/compression");
+
 const SRC_PATH = __dirname + "/frontend/src/metabase";
 const ENTERPRISE_SRC_PATH =
   __dirname + "/enterprise/frontend/src/metabase-enterprise";
@@ -28,7 +32,7 @@ const DEV_PORT = process.env.MB_FRONTEND_DEV_PORT || 8080;
 const resolveEnterprisePathOrNoop = (path) =>
   process.env.MB_EDITION === "ee"
     ? ENTERPRISE_SRC_PATH + path
-    : SRC_PATH + "/lib/noop";
+    : SRC_PATH + "/utils/noop";
 
 module.exports = {
   name: "iframe_sdk_embed_v1",
@@ -70,11 +74,10 @@ module.exports = {
   optimization: { splitChunks: false, runtimeChunk: false },
   devtool: false,
   plugins: [
+    ...COMPRESSION_CONFIG,
     CopyJsFromTmpDirectoryPlugin({
-      fileName: OUT_FILE_NAME,
       tmpPath: OUT_TEMP_PATH,
       outputPath: path.join(BUILD_PATH, "app/"),
-      copySourceMap: false,
       cleanupInDevMode: true,
     }),
   ],
