@@ -318,6 +318,24 @@
      (reduce (fn [res l] (reduce conj! res l)) res more)
      (persistent! res))))
 
+(defn insert
+  "Insert `el` at a position `pos` into a vector `v`. When position is equal to number of elements in `v`, insert at the
+  tail."
+  [v pos el]
+  (let [v (vec v)
+        n (count v)]
+    (if (= pos n)
+      (conj v el)
+      (let [i (volatile! -1)]
+        (persistent! (reduce (fn [acc x]
+                               (vswap! i inc)
+                               (conj! (cond-> acc
+                                        (= @i pos) (conj! el))
+                                      x))
+                             (if (<= n 32)
+                               (small-transient (inc n) identity)
+                               (transient [])) v))))))
+
 #?(:clj
    (defn transpose
      "Like `(apply mapv vector coll-of-colls)`, but more efficient."
