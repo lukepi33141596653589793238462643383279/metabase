@@ -17,20 +17,24 @@ const isAllowedHTTPMethod = (method: any): method is AllowedHTTPMethods => {
 export const apiQuery: BaseQueryFn = async (args, ctx, extraOptions) => {
   const method = typeof args === "string" ? "GET" : (args?.method ?? "GET");
   const url = typeof args === "string" ? args : args.url;
-  const { bodyParamName, noEvent, formData, transformResponse } = args;
+  const { noEvent, formData, transformResponse } = args;
 
   if (!isAllowedHTTPMethod(method)) {
     return { error: "Invalid HTTP method" };
   }
 
+  if (Array.isArray(args?.body)) {
+    return {
+      error:
+        "API bodies must be plain objects, not arrays — wrap the array in an object",
+    };
+  }
+
   try {
     const response = await api[method](url)(
-      // this will transform arrays to objects with numeric keys
-      // we shouldn't be using top level-arrays in the API
       { ...args?.body, ...args?.params },
       {
         signal: ctx.signal,
-        bodyParamName,
         noEvent,
         formData,
         transformResponse,

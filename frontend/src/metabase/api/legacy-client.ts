@@ -35,7 +35,6 @@ type RequestOptions = {
   raw: Record<string, boolean>;
   headers: Record<string, string>;
   formData?: boolean;
-  bodyParamName?: string | null;
   signal?: AbortSignal;
 };
 
@@ -218,11 +217,7 @@ export class LegacyApi extends EventEmitter {
         if (options.hasBody) {
           body = options.formData
             ? (rawData["formData"] as FormData)
-            : JSON.stringify(
-                options.bodyParamName != null
-                  ? data[options.bodyParamName!]
-                  : data,
-              );
+            : JSON.stringify(data);
         } else {
           const qs = querystring.stringify(data as Record<string, string>);
           if (qs) {
