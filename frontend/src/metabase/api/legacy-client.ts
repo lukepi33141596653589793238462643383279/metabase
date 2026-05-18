@@ -3,7 +3,6 @@ import EventEmitter from "events";
 import querystring from "querystring";
 
 import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
-import { isTest } from "metabase/env";
 import { PLUGIN_API, PLUGIN_EMBEDDING_SDK } from "metabase/plugins";
 import type {
   OnBeforeRequestHandler,
@@ -309,123 +308,7 @@ export class LegacyApi extends EventEmitter {
     } while (retryCount < maxAttempts);
   }
 
-  _makeRequest(
-    method: string,
-    url: string,
-    headers: Record<string, string>,
-    body: string | FormData | undefined,
-    data: Record<string, unknown>,
-    options: RequestOptions,
-  ): Promise<unknown> {
-    // this is temporary to not deal with failed cypress tests
-    // we should switch to using fetch in all cases (metabase#28489)
-    if (isTest || options.fetch) {
-      return this._makeRequestWithFetch(
-        method,
-        url,
-        headers,
-        body,
-        data,
-        options,
-      );
-    } else {
-      return this._makeRequestWithXhr(
-        method,
-        url,
-        headers,
-        body,
-        data,
-        options,
-      );
-    }
-  }
-
-  _makeRequestWithXhr(
-    method: string,
-    url: string,
-    headers: Record<string, string>,
-    body: string | FormData | undefined,
-    data: Record<string, unknown>,
-    options: RequestOptions,
-  ): Promise<unknown> {
-    return new Promise((resolve, reject) => {
-      let isCancelled = false;
-      const xhr = new XMLHttpRequest();
-      xhr.open(method, this.basename + url);
-      for (const headerName in headers) {
-        xhr.setRequestHeader(headerName, headers[headerName]);
-      }
-      xhr.onreadystatechange = () => {
-        if (xhr.readyState === XMLHttpRequest.DONE) {
-          // getResponseHeader() is case-insensitive
-          const antiCsrfToken = xhr.getResponseHeader(ANTI_CSRF_HEADER);
-          const metabaseVersion = xhr.getResponseHeader(
-            METABASE_VERSION_HEADER,
-          );
-
-          if (antiCsrfToken) {
-            ANTI_CSRF_TOKEN = antiCsrfToken;
-          }
-
-          let responseBody: Response | string | undefined = xhr.responseText;
-
-          if (options.json) {
-            try {
-              responseBody = JSON.parse(xhr.responseText);
-            } catch (e) {}
-          }
-
-          let status = xhr.status;
-          if (
-            status === 202 &&
-            responseBody &&
-            typeof responseBody === "object" &&
-            "_status" in responseBody &&
-            (responseBody._status as number) > 0
-          ) {
-            status = responseBody._status as number;
-          }
-
-          if (status >= 200 && status <= 299) {
-            if (options.transformResponse) {
-              responseBody = options.transformResponse({
-                body: responseBody as Response,
-                data,
-              });
-            }
-            resolve(responseBody);
-          } else {
-            if (this.onResponseError) {
-              this.onResponseError({
-                body: responseBody,
-                status,
-                metabaseVersion,
-              });
-            }
-
-            reject({
-              status: status,
-              data: responseBody,
-              isCancelled: isCancelled,
-            });
-          }
-          if (!options.noEvent) {
-            this.emit(String(status), url);
-          }
-        }
-      };
-      xhr.send(body);
-
-      if (options.cancelled) {
-        options.cancelled.then(() => {
-          isCancelled = true;
-          xhr.abort();
-        });
-      }
-    });
-  }
-
-  async _makeRequestWithFetch(
+  async _makeRequest(
     method: string,
     url: string,
     headers: Record<string, string>,
