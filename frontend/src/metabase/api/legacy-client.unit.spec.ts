@@ -287,7 +287,6 @@ describe("api", () => {
     it("should preserve all original options when handler does not modify them", async () => {
       const complexOptions = {
         headers: { "X-Custom": "header" },
-        formData: true,
         noEvent: false,
         transformResponse: jest.fn(),
       };

@@ -174,8 +174,7 @@ export const cardApi = Api.injectEndpoints({
           return {
             method: "POST",
             url: "/api/upload/csv",
-            body: { formData },
-            formData: true,
+            body: formData,
           };
         },
         invalidatesTags: (_, error) =>

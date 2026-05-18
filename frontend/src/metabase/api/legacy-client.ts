@@ -33,7 +33,6 @@ type RequestOptions = {
   }) => Response | undefined;
   raw: Record<string, boolean>;
   headers: Record<string, string>;
-  formData?: boolean;
   signal?: AbortSignal;
   // Explicit JSON body content. When set, JSON.stringify'd and sent as the
   // request body. Takes precedence over the legacy single-data-object merge.
@@ -216,13 +215,17 @@ export class LegacyApi extends EventEmitter {
         // - Otherwise: legacy single-data-object — body for POST/PUT/DELETE,
         //   querystring for GET. GET requests can't carry a body, so any body
         //   content (explicit or legacy) is folded into the querystring.
-        let body: string | FormData | undefined;
+        let body: string | FormData | URLSearchParams | undefined;
         const queryStringRecord: Record<string, unknown> = {};
+        // FormData / URLSearchParams are passed directly to fetch — the browser
+        // sets the correct Content-Type (with multipart boundary or
+        // urlencoded), so we strip our default JSON Content-Type below.
+        const bodyIsRaw =
+          options.body instanceof FormData ||
+          options.body instanceof URLSearchParams;
 
-        if (options.formData) {
-          body =
-            (options.body as { formData?: FormData } | undefined)?.formData ??
-            (rawData["formData"] as FormData);
+        if (bodyIsRaw) {
+          body = options.body as FormData | URLSearchParams;
           if (options.params) {
             Object.assign(queryStringRecord, options.params);
           }
@@ -259,7 +262,9 @@ export class LegacyApi extends EventEmitter {
           ...options.headers,
         };
 
-        if (options.formData) {
+        if (bodyIsRaw) {
+          // Let the browser set Content-Type with the multipart boundary
+          // (FormData) or urlencoded charset (URLSearchParams).
           delete headers["Content-Type"];
         }
 
@@ -283,7 +288,7 @@ export class LegacyApi extends EventEmitter {
     method: string,
     url: string,
     headers: Record<string, string>,
-    body: string | FormData | undefined,
+    body: string | FormData | URLSearchParams | undefined,
     data: Record<string, unknown>,
     options: RequestOptions,
   ): Promise<unknown> {
@@ -323,7 +328,7 @@ export class LegacyApi extends EventEmitter {
     method: string,
     url: string,
     headers: Record<string, string>,
-    requestBody: string | FormData | undefined,
+    requestBody: string | FormData | URLSearchParams | undefined,
     data: Record<string, unknown>,
     options: RequestOptions,
   ): Promise<unknown> {
