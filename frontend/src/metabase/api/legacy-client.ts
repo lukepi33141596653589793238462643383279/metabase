@@ -36,7 +36,6 @@ type RequestOptions = {
   retryDelayIntervals: number[];
   formData?: boolean;
   bodyParamName?: string | null;
-  cancelled?: Promise<unknown>;
   controller?: AbortController;
   signal?: AbortSignal;
 };
@@ -316,8 +315,7 @@ export class LegacyApi extends EventEmitter {
     options: RequestOptions,
   ): Promise<unknown> {
     const controller = options.controller || new AbortController();
-    const signal = controller.signal;
-    options.cancelled?.then(() => controller.abort());
+    const signal = options.signal ?? controller.signal;
 
     const requestUrl = new URL(this.basename + url, location.origin);
     const request = new Request(requestUrl.href, {
