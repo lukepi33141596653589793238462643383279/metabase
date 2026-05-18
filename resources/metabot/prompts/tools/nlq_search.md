@@ -1,85 +1,81 @@
-The search tool uses a hybrid semantic and keyword search strategy to find data sources that can be queried using natural language
-(tables, models, metrics, and saved questions) throughout the Metabase instance.
+Hybrid keyword + semantic search for data sources you can query through natural language
+(tables, models, metrics, saved questions, collections). Returns one XML element per hit,
+each carrying a `uri` attribute and curation flags you feed back into `read_resource`
+for details.
 
-## When to Use
+## When to use
 
-This search tool is specifically designed for discovering entities that can be queried through natural language queries. Use it when:
-- Building natural language queries and need to find relevant data sources
-- Looking for curated models, pre-defined metrics, or saved questions
-- Exploring available data for conversational data analysis
-- The user asks about available metrics, models, saved questions, or raw tables for querying
+- Finding the right data source before building a natural-language query.
+- Looking for curated metrics, models, or saved questions that already answer the user's
+  request.
+- Use the navigation URIs on `read_resource` (`metabase://collections?tree=true`,
+  `metabase://collection/{id}/items`) when you already know which container to enumerate
+  — don't search to "list everything".
 
-### Core Use Cases
-- Before creating natural language queries to verify relevant tables, models, metrics, or saved questions exist
-- When the user asks about available metrics, curated data models, or existing saved questions
-- To understand what data can be queried conversationally
-- When exploring analytical data sources (as opposed to pre-built visualizations)
+## How to query
 
-### Iterative Search Strategy
-Search is not a one-shot operation. Use multiple searches to refine your understanding:
-- Start with broad exploration searches to discover what exists
-- Based on initial results, issue more focused searches with refined keywords or filtered entity types
-- Iterate until you have sufficient context to address the user's needs
+`query` is a single string. Phrase it the way a human would: a short noun phrase or
+question fragment.
 
-### Multi-Concept Queries Require Multiple Searches
-When a user's question involves multiple distinct concepts, you MUST issue separate search calls for each concept:
+- ✓ `"monthly active users"`, `"customer churn"`, `"revenue by region"`, `"top products"`
+- ✗ `""` (empty), `"all metrics"`, `"everything"`
 
-Example scenarios:
-- User: "Show me revenue metrics and customer data"
-  → Issue search 1 for revenue metrics
-  → Issue search 2 for customer data
+The backend runs your query through both keyword (full-text) and semantic (vector)
+matching in parallel and fuses the two — you don't need to send paraphrases.
 
-Each search should focus on a single conceptual area to maximize result quality.
+**Iteration is cheap.** If your first query misses, run it again with a different angle.
+A short follow-up beats one broad bundled query.
 
-## Parameter Guidance
-`semantic_queries`:
-- Provide 2-3 semantic search query variations that capture the user's analytical intent from different angles.
-- These are processed through vector similarity search to find conceptually related entities.
-- Each variation should express the same underlying need using different phrasing or emphasis.
+## Filtering & scoping
 
-`keyword_queries`:
-- Provide 2-4 single-word keywords that will be used for exact text matching via full-text search.
-- Each keyword must be a single word, not a phrase.
-- Include variations, abbreviations, and conceptual synonyms.
+`entity_types` — restrict to `table`, `model`, `metric`, `question`, or `collection`.
+Leave empty to search broadly.
 
-`entity_types`:
-- Optionally filter the results to specific data source types (tables, models, metrics, or questions).
-- Leave empty to search across all queryable entity types.
-- Use filtering when the user explicitly requests a specific type or when context makes it clear which types are relevant.
+`database_id` — restrict to one database when the user mentions one or you want to
+narrow.
 
-`limit`:
-- Optional. The maximum number of results to return. Defaults to 10 and is capped at 50.
-- Use a larger limit (20–50) for broad or generic queries where many results may be relevant (e.g. "sales", "revenue", "customer data").
-- Keep the default (10) for narrow, specific searches with clear intent (e.g. "monthly active users by region").
+`collection_id` — restrict to a collection AND its descendants. Use after a
+`collection`-typed search hit, or after listing collections via
+`metabase://collections?tree=true`.
+
+`limit` — default 25, max 50.
+
+## Reading the output
+
+```xml
+<results query="active users" total="9">
+<metric id="19" name="Number of Active Users" uri="metabase://metric/19" is_official="true" database_id="1">
+Collection: Examples
+</metric>
+<metabase_question id="16" name="Number of subscriptions" uri="metabase://question/16" database_id="1">
+Collection: Examples
+</metabase_question>
+<metabase-model id="1" name="Orders + People" uri="metabase://model/1" is_verified="true" is_official="true" database_id="1">
+Collection: Examples
+</metabase-model>
+<collection id="5" name="Engagement Reports" uri="metabase://collection/5" is_container="true"/>
+...
+</results>
+```
+
+Each result is an XML element. Curation attributes: `is_verified`, `is_official`,
+`is_library_member`, `is_container`. Prefer items with curator flags
+(`is_verified` > `is_official` > `is_library_member`) when multiple plausibly answer
+the question.
+
+When a result has `is_container="true"`, call `read_resource` on its `uri`
+(`metabase://collection/{id}/items`) to enumerate members instead of re-searching.
 
 ## Examples
 
 <example>
-<user_prompt>
-What metrics do we have for sales performance?
-</user_prompt>
-<parameter_values>
-"semantic_queries": ["sales performance metrics and KPIs", "revenue and sales tracking measures"],
-"keyword_queries": ["sales", "revenue", "performance", "metric"],
-"entity_types": ["metric"]
-</parameter_values>
+<user_prompt>What metrics do we have for sales performance?</user_prompt>
+<query>"sales performance"</query>
+<entity_types>["metric"]</entity_types>
 </example>
 
 <example>
-<user_prompt>
-Find customer and order data for analysis
-</user_prompt>
-<note>This question has two distinct concepts (customers and orders), so issue two separate search calls.</note>
-
-<search_call_1>
-"semantic_queries": ["customer information and profiles", "client and user data"],
-"keyword_queries": ["customer", "client", "user", "profile"],
-"entity_types": []
-</search_call_1>
-
-<search_call_2>
-"semantic_queries": ["order and purchase data", "transaction and sales records"],
-"keyword_queries": ["order", "purchase", "transaction", "sales"],
-"entity_types": []
-</search_call_2>
+<user_prompt>Find customer data in the marketing collection</user_prompt>
+<query>"customer"</query>
+<collection_id>5</collection_id>
 </example>

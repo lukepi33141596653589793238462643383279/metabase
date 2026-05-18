@@ -1,89 +1,74 @@
-The search tool uses a hybrid semantic and keyword search strategy to find available data sources (or "entities")
-throughout the Metabase instance.
+Hybrid keyword + semantic search for transforms (and the tables and models they read
+from / write to). Returns one XML element per hit, each carrying a `uri` attribute you
+feed back into `read_resource` for details, lineage, and source code.
 
-## When to Use
+## When to use
 
-Search is your primary tool for discovering what data exists in the Metabase environment. Use it frequently and proactively whenever there is uncertainty or ambiguity about available data sources.
+- Finding existing transforms before building a new one.
+- Locating transforms that read from or write to a specific table.
+- Discovering tables and models that could become transform sources.
 
-### Core Use Cases
-- At the start of most user requests to understand what data is available
-- Before creating queries or transforms to verify relevant tables, models, or transforms exist
-- When the user asks about available data, transformation pipelines, or ETL workflows
-- To understand the data model, relationships between entities, and existing transform chains
+## How to query
 
-### Iterative Search Strategy
-Search is not a one-shot operation. Use multiple searches to refine your understanding:
-- Start with broad exploration searches to discover what exists
-- Based on initial results, issue more focused searches with refined keywords or filtered entity types
-- Iterate until you have sufficient context to address the user's needs
+`query` is a single string. Phrase it the way a human would: a short noun phrase or
+transform-name fragment.
 
-### Multi-Concept Queries Require Multiple Searches
-When a user's question involves multiple distinct concepts, you MUST issue separate search calls for each concept:
+- ✓ `"customer aggregation"`, `"daily orders rollup"`, `"revenue by region"`
+- ✗ `""` (empty), `"all transforms"`, `"everything"`
 
-Example scenarios:
-- User: "Show me customer retention and sales performance"
-  → Issue search 1 for customer retention
-  → Issue search 2 for sales performance
+The backend runs your query through both keyword (full-text) and semantic (vector)
+matching in parallel and fuses the two — you don't need to send paraphrases.
 
-- User: "Find transforms that aggregate orders and also any that enrich customer profiles"
-  → Issue search 1 for order aggregation transforms
-  → Issue search 2 for customer enrichment transforms
+**Iteration is cheap.** If your first query misses, run it again with a different angle.
+A short follow-up beats one broad bundled query.
 
-Each search should focus on a single conceptual area to maximize result quality.
+## Filtering & scoping
 
-## Parameter Guidance
-`semantic_queries`:
-- Provide 2-3 semantic search query variations that capture the user's analytical intent from different angles.
-- These are processed through vector similarity search to find conceptually related entities.
-- Each variation should express the same underlying need using different phrasing or emphasis.
+`entity_types` — restrict to `transform`, `table`, or `model`. Leave empty to search all.
 
-`keyword_queries`:
-- Provide 2-4 single-word keywords that will be used for exact text matching via full-text search.
-- Each keyword must be a single word, not a phrase.
-- Include variations, abbreviations, and conceptual synonyms.
+`search_native_query` — when true, also matches against the actual SQL/Python source of
+transforms. Use this when looking for transforms that reference specific tables, function
+names, or implementation details (e.g. `"window function"`, `"CASE WHEN status"`). Defaults
+to false.
 
-`entity_types`:
-- Optionally filter the results to specific data source types.
-- Leave empty to search broadly across all available entity types.
-- Use filtering when the user explicitly requests a specific type or when context makes it clear which types are relevant.
+`limit` — default 25, max 50.
 
-`search_native_query`:
-- When true, the search will also consider the actual SQL/Python code of transforms (defaults to false).
-- Use this when searching for transforms with specific SQL patterns, functions, table names referenced in code, or implementation details.
+## Reading the output
 
-`limit`:
-- Optional. The maximum number of results to return. Defaults to 10 and is capped at 50.
-- Use a larger limit (20–50) for broad or generic queries where many results may be relevant (e.g. "transforms", "pipelines", "customer data").
-- Keep the default (10) for narrow, specific searches with clear intent (e.g. "daily order aggregation transform").
+```xml
+<results query="orders rollup" total="6">
+<transform id="7" name="Daily Orders Rollup" uri="metabase://transform/7" is_verified="true" database_id="1">
+Aggregates orders by day, writing to public.orders_daily
+</transform>
+<table id="2" name="ORDERS" uri="metabase://table/2" database_id="1" fully_qualified_name="PUBLIC.ORDERS">
+Confirmed Sample Company orders
+</table>
+<metabase-model id="4" name="Orders summary" uri="metabase://model/4" database_id="1">
+Collection: Examples
+</metabase-model>
+...
+</results>
+```
+
+Each result is an XML element. Curation attributes: `is_verified`, `is_official`,
+`is_library_member`.
+
+For transforms specifically, follow up with `read_resource`:
+- `metabase://transform/{id}` — full details and source query/Python
+- `metabase://transform/{id}/sources` — tables this transform reads from
+- `metabase://transform/{id}/target` — table this transform writes to
 
 ## Examples
 
 <example>
-<user_prompt>
-What kind of data do we have on revenue and github pull requests?
-</user_prompt>
-<note>This question has two distinct concepts (revenue and GitHub PRs), so issue two separate search calls.</note>
-
-<search_call_1>
-"semantic_queries": ["revenue and sales data", "income and financial performance"],
-"keyword_queries": ["revenue", "sales", "income", "financial"],
-"entity_types": []
-</search_call_1>
-
-<search_call_2>
-"semantic_queries": ["github pull request data", "code review and PR metrics"],
-"keyword_queries": ["github", "pull", "request", "PR"],
-"entity_types": []
-</search_call_2>
+<user_prompt>What transforms aggregate customer data?</user_prompt>
+<query>"customer aggregation"</query>
+<entity_types>["transform"]</entity_types>
 </example>
 
 <example>
-<user_prompt>
-What transforms process customer data?
-</user_prompt>
-<parameter_values>
-"semantic_queries": ["customer data transformation and processing", "customer aggregation and enrichment pipelines"],
-"keyword_queries": ["customer", "transform", "aggregation", "enrichment"],
-"entity_types": ["transform"]
-</parameter_values>
+<user_prompt>Find any transform that uses a window function</user_prompt>
+<query>"window function"</query>
+<entity_types>["transform"]</entity_types>
+<search_native_query>true</search_native_query>
 </example>

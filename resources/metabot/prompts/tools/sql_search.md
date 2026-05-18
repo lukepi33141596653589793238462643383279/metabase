@@ -1,95 +1,78 @@
-The search tool uses a hybrid semantic and keyword search strategy to find SQL-queryable data sources (tables and models)
-throughout the Metabase instance.
+Hybrid keyword + semantic search for SQL-queryable data sources (tables and models)
+within a single database. Returns one XML element per hit, each carrying a `uri` attribute
+you feed back into `read_resource` to inspect schema before writing SQL.
 
-## When to Use
+## When to use
 
-This search tool is specifically designed for discovering tables and models that can be queried using SQL. Use it when:
-- Building SQL queries and need to find relevant tables or models
-- Exploring the data warehouse structure
-- Looking for specific database tables or curated models
-- The user asks about available data for SQL-based analysis
+- Finding tables or models to write SQL against in the SQL editor.
+- Verifying a table exists and seeing its schema before referencing it in a query.
 
-### Core Use Cases
-- Before creating SQL queries to verify relevant tables or models exist
-- When the user asks about available tables or data models
-- To understand the database schema and relationships between tables and models
-- When exploring what SQL-queryable data sources are available
+## How to query
 
-### Iterative Search Strategy
-Search is not a one-shot operation. Use multiple searches to refine your understanding:
-- Start with broad exploration searches to discover what exists
-- Based on initial results, issue more focused searches with refined keywords or filtered entity types
-- Iterate until you have sufficient context to address the user's needs
+`query` is a single string. Phrase it the way a human would: a short noun phrase or table
+name fragment.
 
-### Multi-Concept Queries Require Multiple Searches
-When a user's question involves multiple distinct concepts, you MUST issue separate search calls for each concept:
+- ✓ `"orders"`, `"customer accounts"`, `"product inventory"`, `"GitHub pull requests"`
+- ✗ `""` (empty), `"all tables"`, `"everything"`
 
-Example scenarios:
-- User: "Show me customer data and product inventory tables"
-  → Issue search 1 for customer data
-  → Issue search 2 for product inventory
+The backend runs your query through both keyword (full-text) and semantic (vector)
+matching in parallel and fuses the two — you don't need to send paraphrases.
 
-Each search should focus on a single conceptual area to maximize result quality.
+**Iteration is cheap.** If your first query misses, run it again with a different angle.
+A short follow-up beats one broad bundled query.
 
-## Parameter Guidance
-`database_id`:
-- The ID of the database you want to search. Use the ID of the database the user has selected in the SQL editor.
+## Required & optional args
 
-`semantic_queries`:
-- Provide 2-3 semantic search query variations that capture the user's analytical intent from different angles.
-- These are processed through vector similarity search to find conceptually related entities.
-- Each variation should express the same underlying need using different phrasing or emphasis.
+`database_id` (required) — which warehouse to search. Use the database the user has
+selected in the SQL editor.
 
-`keyword_queries`:
-- Provide 2-4 single-word keywords that will be used for exact text matching via full-text search.
-- Each keyword must be a single word, not a phrase.
-- Include variations, abbreviations, and conceptual synonyms.
+`entity_types` (optional) — restrict to `table` or `model`. Leave empty to search both.
 
-`entity_types`:
-- Optionally filter the results to specific data source types (tables or models).
-- Leave empty to search across both tables and models.
-- Use filtering when the user explicitly requests a specific type or when context makes it clear which types are relevant.
+`limit` (optional) — default 25, max 50. Bump up when you want to see the broader
+landscape; keep low for narrow lookups.
 
-`limit`:
-- Optional. The maximum number of results to return. Defaults to 10 and is capped at 50.
-- Use a larger limit (20–50) for broad or generic queries where many results may be relevant (e.g. "orders", "customers", "revenue data").
-- Keep the default (10) for narrow, specific searches with clear intent (e.g. "monthly active users by region").
+## Reading the output
+
+```xml
+<results query="orders" total="14">
+<model id="1" name="Orders + People" uri="metabase://model/1" is_verified="true" is_official="true" database_id="1">
+Sample orders joined with products
+Collection: Examples
+</model>
+<table id="2" name="ORDERS" uri="metabase://table/2" database_id="1" fully_qualified_name="PUBLIC.ORDERS">
+Confirmed Sample Company orders
+</table>
+<table id="8" name="INVOICES" uri="metabase://table/8" database_id="1" fully_qualified_name="PUBLIC.INVOICES">
+Confirmed payments from customers
+</table>
+...
+</results>
+```
+
+Each result is an XML element. Curation attributes:
+- `is_verified="true"` — explicit moderation review (strongest signal)
+- `is_official="true"` — lives in an official collection
+- `is_library_member="true"` — in a curated published collection
+
+Pick the `uri` of a likely candidate and call `read_resource` (e.g.
+`metabase://table/{id}/fields` or `metabase://model/{id}/sources`) to inspect schema
+before writing SQL. Prefer curated items (`is_verified` > `is_official` >
+`is_library_member`) when multiple plausibly answer the question.
 
 ## Examples
 
-<context>
-User is viewing the SQL editor with database id 123 selected.
-</context>
+<context>User is in the SQL editor with database 123 selected.</context>
 
 <example>
-<user_prompt>
-What tables do we have for orders and customers?
-</user_prompt>
-<note>This question has two distinct concepts (orders and customers), so issue two separate search calls.</note>
-
-<search_call_1>
-"semantic_queries": ["order data and transactions", "purchase and sales orders"],
-"keyword_queries": ["order", "orders", "purchase", "transaction"],
-"database_id": 123,
-"entity_types": ["table"]
-</search_call_1>
-
-<search_call_2>
-"semantic_queries": ["customer information and profiles", "client and user data"],
-"keyword_queries": ["customer", "client", "user", "account"],
-"database_id": 123,
-"entity_types": ["table"]
-</search_call_2>
+<user_prompt>What tables do we have for orders?</user_prompt>
+<query>"orders"</query>
+<database_id>123</database_id>
+<entity_types>["table"]</entity_types>
 </example>
 
 <example>
-<user_prompt>
-Find models related to revenue reporting
-</user_prompt>
-<parameter_values>
-"semantic_queries": ["revenue reporting and financial metrics", "sales income and earnings analysis"],
-"keyword_queries": ["revenue", "sales", "income", "financial"],
-"database_id": 123,
-"entity_types": ["model"]
-</parameter_values>
+<user_prompt>Find models for revenue reporting</user_prompt>
+<query>"revenue reporting"</query>
+<database_id>123</database_id>
+<entity_types>["model"]</entity_types>
 </example>

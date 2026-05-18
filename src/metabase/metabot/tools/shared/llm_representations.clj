@@ -481,11 +481,15 @@
       (clojure.core/name result-type)
       "item")))
 
+(defn- container-type? [type]
+  (#{"dashboard" :dashboard "collection" :collection} type))
+
 (defn search-result->xml
   "Format a single search result as XML element.
    Includes database_id, database_engine, and fully_qualified_name for table/model results
    to match Python AI Service search output."
-  [{:keys [id type name description verified collection
+  [{:keys [id type name description verified collection collection_path
+           official_collection library_member
            database_id database_engine database_schema]}]
   (let [fqn (cond
               (#{"table" :table} type)
@@ -499,15 +503,23 @@
                  (database-engine-or-unknown
                   (if (keyword? database_engine)
                     (clojure.core/name database_engine)
-                    database_engine)))]
+                    database_engine)))
+        type-kw (cond (keyword? type) type
+                      (string? type)  (keyword type)
+                      :else           type)]
     (render-llm-template
      :search_result
      {:search_tag_name (search-result-tag-name type)
       :search_id (str id)
       :search_name name
+      :search_uri (metabase-uri type-kw id)
+      :search_is_container (container-type? type)
       :search_has_verified (some? verified)
       :search_verified verified
+      :search_is_official (boolean official_collection)
+      :search_is_library_member (boolean library_member)
       :search_description description
+      :search_collection_path collection_path
       :search_collection_name (:name collection)
       :search_database_id (when database_id (str database_id))
       :search_database_engine engine

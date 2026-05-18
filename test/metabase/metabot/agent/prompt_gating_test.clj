@@ -34,31 +34,33 @@
    :permission/metabot-nlq            :no
    :permission/metabot-other-tools    :no})
 
+;; Anchors below intentionally use strings present in the simplified internal.selmer
+;; prompt rather than the original section headers — what matters is that gated content
+;; appears when the permission is granted and disappears when it isn't.
+
 (deftest ^:parallel prompt-includes-sql-sections-when-permitted-test
   (let [rendered (render-internal-template all-yes-perms)]
-    (testing "SQL construction section is included"
-      (is (re-find #"sql_construction" rendered)))
-    (testing "SQL routing option is included"
-      (is (re-find #"Use SQL tools" rendered)))
-    (testing "SQL examples are included"
-      (is (re-find #"sql_writing" rendered)))
-    (testing "SQL tool selection guidance is included"
-      (is (re-find #"Explicitly requested.*Write SQL" rendered)))
-    (testing "SQL anti-pattern example is included"
-      (is (re-find #"Not checking field formats before SQL" rendered)))))
+    (testing "SQL capability statement is included"
+      (is (re-find #"write SQL via the SQL tools" rendered)))
+    (testing "SQL editor instruction is included"
+      (is (re-find #"use the SQL tools to put SQL into the editor" rendered)))
+    (testing "SQL example is included"
+      (is (re-find #"SQL with verification" rendered)))
+    (testing "Read-only constraint is included"
+      (is (re-find #"Metabase is read-only" rendered)))
+    (testing "Anti-pattern guidance is included (gated by has_query_tools)"
+      (is (re-find #"Anti-Patterns" rendered)))))
 
 (deftest ^:parallel prompt-excludes-sql-sections-when-not-permitted-test
   (let [rendered (render-internal-template no-sql-perms)]
-    (testing "SQL construction section is excluded"
-      (is (not (re-find #"sql_construction" rendered))))
-    (testing "SQL routing option is excluded"
-      (is (not (re-find #"Use SQL tools" rendered))))
-    (testing "SQL examples are excluded"
-      (is (not (re-find #"sql_writing" rendered))))
-    (testing "SQL tool selection guidance is excluded"
-      (is (not (re-find #"Explicitly requested.*Write SQL" rendered))))
-    (testing "SQL anti-pattern example is excluded"
-      (is (not (re-find #"Not checking field formats before SQL" rendered))))
+    (testing "SQL capability statement is excluded"
+      (is (not (re-find #"write SQL via the SQL tools" rendered))))
+    (testing "SQL editor instruction is excluded"
+      (is (not (re-find #"use the SQL tools to put SQL into the editor" rendered))))
+    (testing "SQL example is excluded"
+      (is (not (re-find #"SQL with verification" rendered))))
+    (testing "Read-only constraint is excluded"
+      (is (not (re-find #"Metabase is read-only" rendered))))
     (testing "explicit denial for SQL is included"
       (is (re-find #"You cannot write SQL" rendered)))
     (testing "denial suggests NLQ as alternative"
@@ -67,14 +69,12 @@
 (deftest ^:parallel prompt-gates-nql-section-test
   (let [with-nql    (render-internal-template all-yes-perms)
         without-nql (render-internal-template no-nql-perms)]
-    (testing "NLQ guidance included when permitted"
-      (is (re-find #"Natural Language Querying" with-nql)))
-    (testing "NLQ routing included when permitted"
-      (is (re-find #"Use natural language querying \(your default mode\)" with-nql)))
-    (testing "NLQ guidance excluded when not permitted"
-      (is (not (re-find #"Natural Language Querying" without-nql))))
-    (testing "NLQ routing excluded when not permitted"
-      (is (not (re-find #"Use natural language querying \(your default mode\)" without-nql))))
+    (testing "NLQ capability statement included when permitted"
+      (is (re-find #"natural language query builder" with-nql)))
+    (testing "NLQ default-mode phrasing included when permitted"
+      (is (re-find #"your default for analytical requests" with-nql)))
+    (testing "NLQ default-mode phrasing excluded when not permitted"
+      (is (not (re-find #"your default for analytical requests" without-nql))))
     (testing "explicit denial for NLQ is included when not permitted"
       (is (re-find #"You cannot use natural language querying" without-nql)))
     (testing "denial suggests SQL as alternative"
@@ -86,10 +86,10 @@
                        {:permission/metabot-sql-generation :yes
                         :permission/metabot-nlq            :yes
                         :permission/metabot-other-tools    :no})]
-    (testing "dashboard routing included when permitted"
-      (is (re-find #"Use X-ray auto-generated dashboard tool" with-other)))
-    (testing "dashboard routing excluded when not permitted"
-      (is (not (re-find #"Use dashboard tools" without-other))))
+    (testing "X-ray dashboard guidance included when permitted"
+      (is (re-find #"X-ray auto-generated dashboard tool" with-other)))
+    (testing "X-ray dashboard guidance excluded when not permitted"
+      (is (not (re-find #"X-ray auto-generated dashboard tool" without-other))))
     (testing "explicit denial for other tools is included when not permitted"
       (is (re-find #"You cannot create dashboards or documents" without-other)))))
 
@@ -103,19 +103,19 @@
       (is (re-find #"CRITICAL CONSTRAINTS" with-queries))
       (is (re-find #"Verify Data Structure" with-queries))
       (is (re-find #"Anti-Patterns" with-queries))
-      (is (re-find #"value_in_samples" with-queries))
-      (is (re-find #"Show me X" with-queries)))
+      (is (re-find #"Value in samples" with-queries))
+      (is (re-find #"Show me UK sales" with-queries)))
     (testing "query-focused sections excluded when neither NQL nor SQL is available"
       (is (not (re-find #"CRITICAL CONSTRAINTS" without-queries)))
       (is (not (re-find #"Verify Data Structure" without-queries)))
       (is (not (re-find #"Anti-Patterns" without-queries)))
-      (is (not (re-find #"value_in_samples" without-queries)))
-      (is (not (re-find #"Show me X" without-queries))))
+      (is (not (re-find #"Value in samples" without-queries)))
+      (is (not (re-find #"Show me UK sales" without-queries))))
     (testing "general sections remain even without query tools"
       (is (re-find #"data analysis assistant" without-queries))
       (is (re-find #"Communication Style" without-queries))
-      (is (re-find #"search_request" without-queries))
-      (is (re-find #"Find \[existing content\]" without-queries)))
+      (is (re-find #"customer dashboards" without-queries))
+      (is (re-find #"Instance Navigation" without-queries)))
     (testing "explicit denial for query tools is included"
       (is (re-find #"You cannot build queries or create charts" without-queries)))
     (testing "no individual SQL/NQL denials when both are off"
@@ -128,9 +128,9 @@
       (is (re-find #"data analysis assistant" rendered))
       (is (re-find #"Communication Style" rendered)))
     (testing "all gated sections are excluded"
-      (is (not (re-find #"sql_construction" rendered)))
-      (is (not (re-find #"Natural Language Querying" rendered)))
-      (is (not (re-find #"Use X-ray auto-generated dashboard tool" rendered)))
+      (is (not (re-find #"write SQL via the SQL tools" rendered)))
+      (is (not (re-find #"natural language query builder" rendered)))
+      (is (not (re-find #"X-ray auto-generated dashboard tool" rendered)))
       (is (not (re-find #"CRITICAL CONSTRAINTS" rendered)))
       (is (not (re-find #"Verify Data Structure" rendered))))
     (testing "denial messages are present"
@@ -140,9 +140,9 @@
 (deftest ^:parallel defaults-to-no-permissions-when-unbound-test
   (testing "when *current-user-metabot-permissions* is nil, defaults exclude everything"
     (let [rendered (render-internal-template nil)]
-      (is (not (re-find #"sql_construction" rendered)))
-      (is (not (re-find #"Natural Language Querying" rendered)))
-      (is (not (re-find #"Use X-ray auto-generated dashboard tool" rendered)))
+      (is (not (re-find #"write SQL via the SQL tools" rendered)))
+      (is (not (re-find #"natural language query builder" rendered)))
+      (is (not (re-find #"X-ray auto-generated dashboard tool" rendered)))
       (is (not (re-find #"CRITICAL CONSTRAINTS" rendered)))
       (is (re-find #"You cannot build queries or create charts" rendered))
       (is (re-find #"You cannot create dashboards or documents" rendered)))))
