@@ -118,7 +118,6 @@ describe("api", () => {
         options: {
           hasBody: true,
           headers: { "X-Original": "value" },
-          retry: true,
         },
         data: {},
       };
@@ -147,7 +146,6 @@ describe("api", () => {
         "X-Modified": "new-value",
       });
       expect(result.options.hasBody).toBe(true);
-      expect(result.options.retry).toBe(true);
     });
 
     it("should execute multiple handlers in order", async () => {
@@ -293,8 +291,6 @@ describe("api", () => {
       const complexOptions = {
         hasBody: true,
         headers: { "X-Custom": "header" },
-        retry: true,
-        retryCount: 5,
         formData: true,
         noEvent: false,
         transformResponse: jest.fn(),
