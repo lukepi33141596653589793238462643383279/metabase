@@ -36,7 +36,6 @@ type RequestOptions = {
   retryDelayIntervals: number[];
   formData?: boolean;
   bodyParamName?: string | null;
-  controller?: AbortController;
   signal?: AbortSignal;
 };
 
@@ -314,15 +313,12 @@ export class LegacyApi extends EventEmitter {
     data: Record<string, unknown>,
     options: RequestOptions,
   ): Promise<unknown> {
-    const controller = options.controller || new AbortController();
-    const signal = options.signal ?? controller.signal;
-
     const requestUrl = new URL(this.basename + url, location.origin);
     const request = new Request(requestUrl.href, {
       method,
       headers,
       body: requestBody,
-      signal,
+      signal: options.signal,
     });
 
     // Propagate aborts from an externally-supplied signal. If the signal is
@@ -393,7 +389,7 @@ export class LegacyApi extends EventEmitter {
         });
       })
       .catch((error: unknown) => {
-        if (signal.aborted) {
+        if (options.signal?.aborted) {
           throw { isCancelled: true };
         }
         // A raw `fetch` rejection (e.g. the server dropped the connection)
