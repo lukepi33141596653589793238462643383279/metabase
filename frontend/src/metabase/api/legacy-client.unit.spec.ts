@@ -5,7 +5,6 @@ type OnBeforeRequestHandlerData = {
   url: string;
   options: {
     headers?: Record<string, string>;
-    hasBody: boolean;
   } & Record<string, unknown>;
 };
 
@@ -21,7 +20,7 @@ describe("api", () => {
       const inputData = {
         method: "GET" as const,
         url: "/api/test",
-        options: { hasBody: false },
+        options: {},
         data: {},
       };
 
@@ -35,7 +34,7 @@ describe("api", () => {
       const inputData = {
         method: "POST" as const,
         url: "/api/test",
-        options: { hasBody: true, headers: { "X-Test": "value" } },
+        options: { headers: { "X-Test": "value" } },
         data: {},
       };
 
@@ -59,7 +58,7 @@ describe("api", () => {
       const inputData = {
         method: "GET" as const,
         url: "/api/original",
-        options: { hasBody: false },
+        options: {},
         data: {},
       };
 
@@ -91,14 +90,14 @@ describe("api", () => {
       const inputData = {
         method: "GET" as const,
         url: "/api/original",
-        options: { hasBody: false },
+        options: {},
         data: {},
       };
 
       const modifications = {
         method: "POST" as const,
         url: "/api/modified",
-        options: { hasBody: true, custom: "value" },
+        options: { custom: "value" },
       };
 
       jest
@@ -116,7 +115,6 @@ describe("api", () => {
         method: "POST" as const,
         url: "/api/test",
         options: {
-          hasBody: true,
           headers: { "X-Original": "value" },
         },
         data: {},
@@ -145,14 +143,13 @@ describe("api", () => {
         "X-Original": "value",
         "X-Modified": "new-value",
       });
-      expect(result.options.hasBody).toBe(true);
     });
 
     it("should execute multiple handlers in order", async () => {
       const inputData = {
         method: "GET" as const,
         url: "/api/start",
-        options: { hasBody: false, counter: 0 },
+        options: { counter: 0 },
         data: {},
       };
 
@@ -234,7 +231,7 @@ describe("api", () => {
       const inputData = {
         method: "POST" as const,
         url: "/api/async",
-        options: { hasBody: true },
+        options: {},
         data: {},
       };
 
@@ -264,7 +261,7 @@ describe("api", () => {
       const inputData = {
         method: "GET" as const,
         url: "/api/test",
-        options: { hasBody: false },
+        options: {},
         data: {},
       };
 
@@ -284,12 +281,11 @@ describe("api", () => {
 
       expect(result.method).toBe("GET");
       expect(result.url).toBe("/api/test");
-      expect(result.options).toEqual({ hasBody: false, newOption: "added" });
+      expect(result.options).toEqual({ newOption: "added" });
     });
 
     it("should preserve all original options when handler does not modify them", async () => {
       const complexOptions = {
-        hasBody: true,
         headers: { "X-Custom": "header" },
         formData: true,
         noEvent: false,

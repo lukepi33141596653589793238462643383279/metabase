@@ -32,12 +32,14 @@ export const apiQuery: BaseQueryFn = async (args, ctx, extraOptions) => {
 
   try {
     const response = await api[method](url)(
-      { ...args?.body, ...args?.params },
+      {},
       {
         signal: ctx.signal,
         noEvent,
         formData,
         transformResponse,
+        body: args?.body,
+        params: args?.params,
         ...extraOptions,
       },
     );
