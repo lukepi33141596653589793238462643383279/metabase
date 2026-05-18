@@ -35,7 +35,6 @@ export const contentTranslationApi = EnterpriseApi.injectEndpoints({
             url: contentTranslationEndpoints.uploadDictionary,
             body: { formData },
             formData: true,
-            fetch: true,
           };
         },
         invalidatesTags: (_, error) =>

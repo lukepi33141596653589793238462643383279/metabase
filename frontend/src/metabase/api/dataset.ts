@@ -52,7 +52,6 @@ export const datasetApi = Api.injectEndpoints({
             url,
             body: { formData },
             formData: true,
-            fetch: true,
             transformResponse: ({ response }: { response: Response }) =>
               response,
           };
@@ -60,7 +59,6 @@ export const datasetApi = Api.injectEndpoints({
         return {
           method: "GET",
           url,
-          fetch: true,
           transformResponse: ({ response }: { response: Response }) => response,
         };
       },

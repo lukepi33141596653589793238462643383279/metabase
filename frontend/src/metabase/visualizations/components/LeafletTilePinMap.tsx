@@ -180,7 +180,6 @@ export class LeafletTilePinMap extends LeafletMap<LeafletTilePinMapProps> {
 
       (
         GET(tileUrl, {
-          fetch: true,
           signal: controller.signal,
           transformResponse: ({ response }) => response,
         })() as Promise<Response>
