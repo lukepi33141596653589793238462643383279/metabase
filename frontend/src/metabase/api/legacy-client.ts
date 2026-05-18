@@ -35,7 +35,6 @@ type RequestOptions = {
   retryCount: number;
   retryDelayIntervals: number[];
   formData?: boolean;
-  fetch?: boolean;
   bodyParamName?: string | null;
   cancelled?: Promise<unknown>;
   controller?: AbortController;
@@ -248,7 +247,7 @@ export class LegacyApi extends EventEmitter {
           ...options.headers,
         };
 
-        if (options.formData && options.fetch) {
+        if (options.formData) {
           delete headers["Content-Type"];
         }
 
