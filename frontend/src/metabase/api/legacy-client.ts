@@ -2,6 +2,7 @@
 import EventEmitter from "events";
 import querystring from "querystring";
 
+import { substituteUrlTags } from "metabase/api/utils/substitute-url-tags";
 import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
 import { PLUGIN_API, PLUGIN_EMBEDDING_SDK } from "metabase/plugins";
 import type {
@@ -31,7 +32,6 @@ type RequestOptions = {
     data?: Record<string, unknown>;
     response?: Response;
   }) => Response | undefined;
-  raw: Record<string, boolean>;
   headers: Record<string, string>;
   signal?: AbortSignal;
 };
@@ -39,7 +39,6 @@ type RequestOptions = {
 const DEFAULT_OPTIONS: RequestOptions = {
   noEvent: false,
   transformResponse: ({ body }) => body as Response,
-  raw: {},
   headers: {},
 };
 
@@ -188,19 +187,7 @@ export class LegacyApi extends EventEmitter {
           ...middlewareResult.options,
         } as RequestOptions;
         const { data } = middlewareResult;
-        for (const tag of url.match(/:\w+/g) || []) {
-          const paramName = tag.slice(1);
-          let value = data[paramName];
-          delete data[paramName];
-          if (value === undefined) {
-            console.warn("Warning: calling", method, "without", tag);
-            value = "";
-          }
-          if (!options.raw || !options.raw[paramName]) {
-            value = encodeURIComponent(value as string);
-          }
-          url = url.replace(tag, value as string);
-        }
+        url = substituteUrlTags(url, data, method);
         // remove undefined
         for (const name in data) {
           if (data[name] === undefined) {
@@ -254,7 +241,6 @@ export class LegacyApi extends EventEmitter {
     noEvent,
     transformResponse,
     headers: headerOverrides,
-    raw,
   }: {
     method: "GET" | "POST" | "PUT" | "DELETE";
     url: string;
@@ -264,14 +250,12 @@ export class LegacyApi extends EventEmitter {
     noEvent?: boolean;
     transformResponse?: RequestOptions["transformResponse"];
     headers?: Record<string, string>;
-    raw?: Record<string, boolean>;
   }): Promise<unknown> {
     const invocationOptions: Partial<RequestOptions> = {
       signal,
       ...(noEvent !== undefined ? { noEvent } : {}),
       ...(transformResponse ? { transformResponse } : {}),
       ...(headerOverrides ? { headers: headerOverrides } : {}),
-      ...(raw ? { raw } : {}),
     };
 
     const middlewareResult = await this.apiRequestManipulationMiddleware({
@@ -292,19 +276,7 @@ export class LegacyApi extends EventEmitter {
     } as RequestOptions;
     const { data } = middlewareResult;
 
-    for (const tag of url.match(/:\w+/g) || []) {
-      const paramName = tag.slice(1);
-      let value = data[paramName];
-      delete data[paramName];
-      if (value === undefined) {
-        console.warn("Warning: calling", finalMethod, "without", tag);
-        value = "";
-      }
-      if (!options.raw || !options.raw[paramName]) {
-        value = encodeURIComponent(value as string);
-      }
-      url = url.replace(tag, value as string);
-    }
+    url = substituteUrlTags(url, data, finalMethod);
     for (const name in data) {
       if (data[name] === undefined) {
         delete data[name];
