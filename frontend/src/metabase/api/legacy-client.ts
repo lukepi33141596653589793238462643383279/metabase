@@ -356,85 +356,70 @@ export class LegacyApi extends EventEmitter {
       signal: options.signal,
     });
 
-    // Propagate aborts from an externally-supplied signal. If the signal is
-    // already aborted (e.g. cancelled while we were awaiting auth-refresh
-    // middleware), defer the propagation to the next microtask so the request
-    // still gets dispatched first — matching XHR's `send()` then-`abort()`
-    // semantics, where `xhr.send()` runs before the cancel handler is wired
-    // up. Otherwise the network never sees the request at all.
-    if (options.signal) {
-      if (options.signal.aborted) {
-        queueMicrotask(() => controller.abort());
-      } else {
-        options.signal.addEventListener("abort", () => controller.abort());
+    try {
+      const response = await fetch(request);
+
+      const unreadResponse = response.clone();
+      const bodyText = await response.text();
+      let body: string | Response | undefined = bodyText;
+
+      try {
+        body = JSON.parse(bodyText);
+      } catch (e) {}
+
+      let status = response.status;
+      if (
+        status === 202 &&
+        body &&
+        typeof body === "object" &&
+        "_status" in body &&
+        body._status &&
+        (body._status as number) > 0
+      ) {
+        status = (body as Record<string, number>)._status;
       }
+
+      const token = response.headers.get(ANTI_CSRF_HEADER);
+      const metabaseVersion = response.headers.get(METABASE_VERSION_HEADER);
+
+      if (token) {
+        ANTI_CSRF_TOKEN = token;
+      }
+
+      if (!options.noEvent) {
+        this.emit(String(status), url);
+      }
+
+      if (status >= 200 && status <= 299) {
+        if (options.transformResponse) {
+          body = options.transformResponse({
+            body: body as Response,
+            data,
+            response: unreadResponse,
+          });
+        }
+        return body;
+      } else {
+        if (this.onResponseError) {
+          this.onResponseError({ body, status, metabaseVersion });
+        }
+
+        throw { status: status, data: body };
+      }
+    } catch (error: unknown) {
+      if (options.signal?.aborted) {
+        throw { isCancelled: true };
+      }
+      // A raw `fetch` rejection (e.g. the server dropped the connection)
+      // surfaces as a plain Error here, indistinguishable from JS
+      // exceptions thrown elsewhere. Wrap it so downstream renderers can
+      // `instanceof NetworkError`-check and route it to the connectivity
+      // error message.
+      if (error instanceof Error) {
+        throw new NetworkError(error.message);
+      }
+      throw error;
     }
-
-    return fetch(request)
-      .then((response) => {
-        const unreadResponse = response.clone();
-        return response.text().then((bodyText) => {
-          let body: string | Response | undefined = bodyText;
-
-          try {
-            body = JSON.parse(bodyText);
-          } catch (e) {}
-
-          let status = response.status;
-          if (
-            status === 202 &&
-            body &&
-            typeof body === "object" &&
-            "_status" in body &&
-            body._status &&
-            (body._status as number) > 0
-          ) {
-            status = (body as Record<string, number>)._status;
-          }
-
-          const token = response.headers.get(ANTI_CSRF_HEADER);
-          const metabaseVersion = response.headers.get(METABASE_VERSION_HEADER);
-
-          if (token) {
-            ANTI_CSRF_TOKEN = token;
-          }
-
-          if (!options.noEvent) {
-            this.emit(String(status), url);
-          }
-
-          if (status >= 200 && status <= 299) {
-            if (options.transformResponse) {
-              body = options.transformResponse({
-                body: body as Response,
-                data,
-                response: unreadResponse,
-              });
-            }
-            return body;
-          } else {
-            if (this.onResponseError) {
-              this.onResponseError({ body, status, metabaseVersion });
-            }
-
-            throw { status: status, data: body };
-          }
-        });
-      })
-      .catch((error: unknown) => {
-        if (options.signal?.aborted) {
-          throw { isCancelled: true };
-        }
-        // A raw `fetch` rejection (e.g. the server dropped the connection)
-        // surfaces as a plain Error here, indistinguishable from JS
-        // exceptions thrown elsewhere. Wrap it so downstream renderers can
-        // `instanceof NetworkError`-check and route it to the connectivity
-        // error message.
-        if (error instanceof Error) {
-          throw new NetworkError(error.message);
-        }
-        throw error;
-      });
   }
 
   async apiRequestManipulationMiddleware(
