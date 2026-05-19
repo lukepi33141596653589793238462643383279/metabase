@@ -99,6 +99,11 @@ export class LegacyApi extends EventEmitter {
     this.PUT = this._makeMethod("PUT", false);
   }
 
+  buildUrl(template: string, data: Record<string, unknown>): URL {
+    const relativePath = substituteUrlTags(template, data);
+    return new URL(this.basename.concat(relativePath), location.origin);
+  }
+
   getClientHeaders(
     extraHeaders: Record<string, string> = {},
   ): Record<string, string> {
@@ -185,7 +190,7 @@ export class LegacyApi extends EventEmitter {
         // Method-derived placement: POST/PUT/DELETE put data in body, GET
         // puts it in the querystring. Callers wanting RTK-style explicit
         // body/params semantics use `request()` below instead.
-        let url = substituteUrlTags(middlewareResult.url, data, method);
+        const url = this.buildUrl(middlewareResult.url, data);
         let body: string | undefined = undefined;
 
         const headers = this.getClientHeaders(options.headers);
@@ -197,7 +202,7 @@ export class LegacyApi extends EventEmitter {
           body = JSON.stringify(data);
         }
 
-        url = appendQueryParameters(url, queryParams);
+        appendQueryParameters(url, queryParams);
 
         const send = () =>
           this._makeRequest(method, url, headers, body, data, options);
@@ -261,9 +266,9 @@ export class LegacyApi extends EventEmitter {
       ...middlewareResult.options,
     };
 
-    let url = substituteUrlTags(middlewareResult.url, data, method);
-    let body: string | FormData | URLSearchParams | undefined = undefined;
+    const url = this.buildUrl(middlewareResult.url, data);
     const headers = this.getClientHeaders(options.headers);
+    let body: string | FormData | URLSearchParams | undefined = undefined;
 
     const queryParams: Record<string, unknown> = { ...data };
 
@@ -283,7 +288,7 @@ export class LegacyApi extends EventEmitter {
       body = JSON.stringify(requestBody);
     }
 
-    url = appendQueryParameters(url, queryParams);
+    appendQueryParameters(url, queryParams);
 
     // RTK callers don't retry; matches the prior behavior where apiQuery never
     // opted into retries.
@@ -292,14 +297,13 @@ export class LegacyApi extends EventEmitter {
 
   async _makeRequest<T = unknown>(
     method: string,
-    url: string,
+    url: URL,
     headers: Record<string, string>,
     requestBody: string | FormData | URLSearchParams | undefined,
     data: Record<string, unknown>,
     options: RequestOptions<T>,
   ): Promise<T> {
-    const requestUrl = new URL(this.basename + url, location.origin);
-    const request = new Request(requestUrl.href, {
+    const request = new Request(url.href, {
       method,
       headers,
       body: requestBody,
@@ -326,7 +330,11 @@ export class LegacyApi extends EventEmitter {
       }
 
       if (!options.noEvent) {
-        this.emit(String(status), url);
+        // Strip basename so listeners (app-main.js) see the relative path.
+        const emitPath = url.pathname.startsWith(this.basename)
+          ? url.pathname.slice(this.basename.length)
+          : url.pathname;
+        this.emit(String(status), emitPath + url.search);
       }
 
       if (status >= 200 && status <= 299) {
@@ -479,11 +487,7 @@ function getResponseStatus(response: Response, body: unknown): number {
   return response.status;
 }
 
-// Sentinel base used only to let `new URL` accept relative paths; stripped before returning.
-const RELATIVE_URL_BASE = "http://__relative__";
-
-function appendQueryParameters(url: string, params: Record<string, unknown>) {
-  const parsed = new URL(url, RELATIVE_URL_BASE);
+function appendQueryParameters(url: URL, params: Record<string, unknown>) {
   for (const key in params) {
     const value = params[key];
     if (value === undefined) {
@@ -491,14 +495,10 @@ function appendQueryParameters(url: string, params: Record<string, unknown>) {
     }
     if (Array.isArray(value)) {
       for (const item of value) {
-        parsed.searchParams.append(key, String(item));
+        url.searchParams.append(key, String(item));
       }
     } else {
-      parsed.searchParams.append(key, String(value));
+      url.searchParams.append(key, String(value));
     }
   }
-  const absolute = parsed.toString();
-  return absolute.startsWith(RELATIVE_URL_BASE)
-    ? absolute.slice(RELATIVE_URL_BASE.length)
-    : absolute;
 }
