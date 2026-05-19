@@ -146,7 +146,10 @@ export class LegacyApi extends EventEmitter {
     };
   }
 
-  _makeMethod(methodTemplate: string, retry: boolean = false): MethodCreator {
+  _makeMethod(
+    methodTemplate: string,
+    withRetries: boolean = false,
+  ): MethodCreator {
     return (urlTemplate, methodOptions = {}) => {
       if (typeof methodOptions === "function") {
         methodOptions = { transformResponse: methodOptions };
@@ -195,15 +198,16 @@ export class LegacyApi extends EventEmitter {
 
         const headers = this.getClientHeaders(options.headers);
 
-        return this._dispatch({
-          method,
-          url,
-          headers,
-          body,
-          data,
-          options,
-          retry,
-        });
+        const send = () =>
+          this._makeRequest(method, url, headers, body, data, options);
+
+        if (withRetries) {
+          return retry(send, {
+            maxRetries: MAX_RETRIES,
+            shouldRetry: isRetriableError,
+          });
+        }
+        return send();
       };
     };
   }
@@ -296,44 +300,8 @@ export class LegacyApi extends EventEmitter {
     }
 
     // RTK callers don't retry; matches the prior behavior where apiQuery never
-    // set `retry: true`.
-    return this._dispatch({
-      method: finalMethod,
-      url,
-      headers,
-      body,
-      data,
-      options,
-      retry: false,
-    });
-  }
-
-  _dispatch({
-    method,
-    url,
-    headers,
-    body,
-    data,
-    options,
-    retry: canRetry,
-  }: {
-    method: string;
-    url: string;
-    headers: Record<string, string>;
-    body: string | FormData | URLSearchParams | undefined;
-    data: Record<string, unknown>;
-    options: RequestOptions;
-    retry: boolean;
-  }): Promise<unknown> {
-    // Attempt the request; on 503 retry up to MAX_RETRIES times with
-    // exponential backoff (1s, 2s, 4s, 8s, ...).
-    return retry(
-      () => this._makeRequest(method, url, headers, body, data, options),
-      {
-        maxRetries: canRetry ? MAX_RETRIES : 0,
-        shouldRetry: canRetryRequest,
-      },
-    );
+    // opted into retries.
+    return this._makeRequest(finalMethod, url, headers, body, data, options);
   }
 
   async _makeRequest(
@@ -509,7 +477,7 @@ function getErrorStatus(error: unknown): number | undefined {
   return undefined;
 }
 
-function canRetryRequest(error: unknown): boolean {
+function isRetriableError(error: unknown): boolean {
   return getErrorStatus(error) === 503;
 }
 
