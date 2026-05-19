@@ -296,13 +296,7 @@ export class LegacyApi extends EventEmitter {
       });
 
       const unreadResponse = response.clone();
-      const bodyText = await response.text();
-      let body: unknown = bodyText;
-
-      try {
-        body = JSON.parse(bodyText);
-      } catch (e) {}
-
+      const body = await getResponseBody(response);
       const status = getResponseStatus(response, body);
       const token = response.headers.get(ANTI_CSRF_HEADER);
       const metabaseVersion = response.headers.get(METABASE_VERSION_HEADER);
@@ -467,6 +461,17 @@ function getResponseStatus(response: Response, body: unknown): number {
   }
 
   return response.status;
+}
+
+async function getResponseBody(response: Response): Promise<unknown> {
+  const bodyText = await response.text();
+
+  try {
+    return JSON.parse(bodyText);
+  } catch (error) {
+    // do nothing
+  }
+  return bodyText;
 }
 
 function appendQueryParameters(url: URL, params: Record<string, unknown>) {
