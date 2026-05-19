@@ -194,15 +194,13 @@ export class LegacyApi extends EventEmitter {
         let body: string | undefined = undefined;
 
         const headers = this.getClientHeaders(options.headers);
-        const queryParams: Record<string, unknown> = {};
 
         if (method === "GET") {
-          Object.assign(queryParams, data);
+          // GET cannot carry a body: fold any body content into the querystring.
+          appendQueryParameters(url, data);
         } else if (Object.keys(data).length > 0) {
           body = JSON.stringify(data);
         }
-
-        appendQueryParameters(url, queryParams);
 
         const send = () =>
           this._makeRequest(method, url, headers, body, data, options);
@@ -270,11 +268,13 @@ export class LegacyApi extends EventEmitter {
     const headers = this.getClientHeaders(options.headers);
     let body: string | FormData | URLSearchParams | undefined = undefined;
 
-    const queryParams: Record<string, unknown> = { ...data };
+    // Leftover params (post URL-tag substitution) always go to the querystring.
+    appendQueryParameters(url, data);
 
     if (method === "GET") {
       // GET cannot carry a body: fold any body content into the querystring.
-      Object.assign(queryParams, requestBody);
+      const params = (requestBody ?? {}) as Record<string, unknown>;
+      appendQueryParameters(url, params);
     } else if (
       requestBody instanceof FormData ||
       requestBody instanceof URLSearchParams
@@ -287,8 +287,6 @@ export class LegacyApi extends EventEmitter {
     } else if (requestBody !== undefined) {
       body = JSON.stringify(requestBody);
     }
-
-    appendQueryParameters(url, queryParams);
 
     // RTK callers don't retry; matches the prior behavior where apiQuery never
     // opted into retries.
