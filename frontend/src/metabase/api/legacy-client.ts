@@ -1,6 +1,5 @@
 /* eslint-disable metabase/no-literal-metabase-strings */
 import EventEmitter from "events";
-import querystring from "querystring";
 
 import { substituteUrlTags } from "metabase/api/utils/substitute-url-tags";
 import { isEmbeddingSdk } from "metabase/embedding-sdk/config";
@@ -175,36 +174,30 @@ export class LegacyApi extends EventEmitter {
           // we shouldn't be using top level-arrays in the API
           data: { ...rawData },
         });
-        let { url, method } = middlewareResult;
-        // Re-merge to preserve all RequestOptions fields after middleware (middleware can only extend options)
+
+        const { method, data } = middlewareResult;
         const options = {
           ...methodOptions,
           ...invocationOptions,
           ...middlewareResult.options,
         };
-        const { data } = middlewareResult;
-        url = substituteUrlTags(url, data, method);
-        // remove undefined
-        for (const name in data) {
-          if (data[name] === undefined) {
-            delete data[name];
-          }
-        }
 
         // Method-derived placement: POST/PUT/DELETE put data in body, GET
         // puts it in the querystring. Callers wanting RTK-style explicit
         // body/params semantics use `request()` below instead.
-        let body: string | undefined;
+        let url = substituteUrlTags(middlewareResult.url, data, method);
+        let body: string | undefined = undefined;
+
+        const headers = this.getClientHeaders(options.headers);
+        const queryParams: Record<string, unknown> = {};
+
         if (method === "GET") {
-          const qs = querystring.stringify(data as Record<string, string>);
-          if (qs) {
-            url += (url.indexOf("?") >= 0 ? "&" : "?") + qs;
-          }
+          Object.assign(queryParams, data);
         } else if (Object.keys(data).length > 0) {
           body = JSON.stringify(data);
         }
 
-        const headers = this.getClientHeaders(options.headers);
+        url = appendQueryParameters(url, queryParams);
 
         const send = () =>
           this._makeRequest(method, url, headers, body, data, options);
@@ -230,7 +223,7 @@ export class LegacyApi extends EventEmitter {
    * No method-derived guesswork about whether data is body or querystring.
    */
   async request<T = unknown>({
-    method,
+    method: methodTemplate,
     url: urlTemplate,
     body: requestBody,
     params,
@@ -250,66 +243,51 @@ export class LegacyApi extends EventEmitter {
   }): Promise<T> {
     const invocationOptions = {
       signal,
-      ...(noEvent !== undefined ? { noEvent } : {}),
-      ...(transformResponse ? { transformResponse } : {}),
-      ...(headerOverrides ? { headers: headerOverrides } : {}),
+      noEvent,
+      transformResponse,
+      headers: headerOverrides,
     };
 
     const middlewareResult = await this.apiRequestManipulationMiddleware({
       url: urlTemplate,
-      method,
+      method: methodTemplate,
       options: invocationOptions,
       data: { ...params },
     });
 
-    let { url, method: finalMethod } = middlewareResult;
+    const { method, data } = middlewareResult;
     const options = {
       ...invocationOptions,
       ...middlewareResult.options,
     };
-    const { data } = middlewareResult;
 
-    url = substituteUrlTags(url, data, finalMethod);
-    for (const name in data) {
-      if (data[name] === undefined) {
-        delete data[name];
-      }
-    }
+    let url = substituteUrlTags(middlewareResult.url, data, method);
+    let body: string | FormData | URLSearchParams | undefined = undefined;
+    const headers = this.getClientHeaders(options.headers);
 
-    let body: string | FormData | URLSearchParams | undefined;
-    const queryStringRecord: Record<string, unknown> = { ...data };
-    const bodyIsRaw =
-      requestBody instanceof FormData || requestBody instanceof URLSearchParams;
+    const queryParams: Record<string, unknown> = { ...data };
 
-    if (finalMethod === "GET") {
+    if (method === "GET") {
       // GET cannot carry a body: fold any body content into the querystring.
-      Object.assign(
-        queryStringRecord,
-        requestBody as Record<string, unknown> | undefined,
-      );
-    } else if (bodyIsRaw) {
-      body = requestBody as FormData | URLSearchParams;
+      Object.assign(queryParams, requestBody);
+    } else if (
+      requestBody instanceof FormData ||
+      requestBody instanceof URLSearchParams
+    ) {
+      body = requestBody;
+
+      // Let the browser set Content-Type with the multipart boundary
+      // (FormData) or urlencoded charset (URLSearchParams).
+      delete headers["Content-Type"];
     } else if (requestBody !== undefined) {
       body = JSON.stringify(requestBody);
     }
 
-    const qs = querystring.stringify(
-      queryStringRecord as Record<string, string>,
-    );
-    if (qs) {
-      url += (url.indexOf("?") >= 0 ? "&" : "?") + qs;
-    }
-
-    const headers = this.getClientHeaders(options.headers);
-    if (bodyIsRaw) {
-      // Let the browser set Content-Type with the multipart boundary
-      // (FormData) or urlencoded charset (URLSearchParams).
-      delete headers["Content-Type"];
-    }
+    url = appendQueryParameters(url, queryParams);
 
     // RTK callers don't retry; matches the prior behavior where apiQuery never
     // opted into retries.
-    return this._makeRequest<T>(finalMethod, url, headers, body, data, options);
+    return this._makeRequest<T>(method, url, headers, body, data, options);
   }
 
   async _makeRequest<T = unknown>(
@@ -499,4 +477,28 @@ function getResponseStatus(response: Response, body: unknown): number {
   }
 
   return response.status;
+}
+
+// Sentinel base used only to let `new URL` accept relative paths; stripped before returning.
+const RELATIVE_URL_BASE = "http://__relative__";
+
+function appendQueryParameters(url: string, params: Record<string, unknown>) {
+  const parsed = new URL(url, RELATIVE_URL_BASE);
+  for (const key in params) {
+    const value = params[key];
+    if (value === undefined) {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        parsed.searchParams.append(key, String(item));
+      }
+    } else {
+      parsed.searchParams.append(key, String(value));
+    }
+  }
+  const absolute = parsed.toString();
+  return absolute.startsWith(RELATIVE_URL_BASE)
+    ? absolute.slice(RELATIVE_URL_BASE.length)
+    : absolute;
 }
