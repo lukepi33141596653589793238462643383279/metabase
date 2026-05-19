@@ -31,17 +31,16 @@ export const apiQuery: BaseQueryFn = async (args, ctx, extraOptions) => {
   }
 
   try {
-    const response = await api[method](url)(
-      {},
-      {
-        signal: ctx.signal,
-        noEvent,
-        transformResponse,
-        body: args?.body,
-        params: args?.params,
-        ...extraOptions,
-      },
-    );
+    const response = await api.request({
+      method,
+      url,
+      body: args?.body,
+      params: args?.params,
+      signal: ctx.signal,
+      noEvent,
+      transformResponse,
+      ...extraOptions,
+    });
     return { data: response };
   } catch (error) {
     return { error };
