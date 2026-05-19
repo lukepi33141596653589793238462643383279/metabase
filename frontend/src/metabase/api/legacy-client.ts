@@ -287,15 +287,13 @@ export class LegacyApi extends EventEmitter {
     data: Record<string, unknown>,
     options: RequestOptions<T>,
   ): Promise<T> {
-    const request = new Request(url.href, {
-      method,
-      headers,
-      body: requestBody,
-      signal: options.signal,
-    });
-
     try {
-      const response = await fetch(request);
+      const response = await fetch(url.href, {
+        method,
+        headers,
+        body: requestBody,
+        signal: options.signal,
+      });
 
       const unreadResponse = response.clone();
       const bodyText = await response.text();
