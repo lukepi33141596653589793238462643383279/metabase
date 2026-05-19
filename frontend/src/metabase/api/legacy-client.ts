@@ -109,7 +109,10 @@ export class LegacyApi extends EventEmitter {
 
   getClientHeaders(): Record<string, string> {
     const self = this;
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
 
     if (this.apiKey) {
       headers["X-Api-Key"] = self.apiKey;
@@ -355,8 +358,6 @@ export class LegacyApi extends EventEmitter {
   _buildHeaders(options: RequestOptions): Record<string, string> {
     return {
       ...this.getClientHeaders(),
-      Accept: "application/json",
-      "Content-Type": "application/json",
       ...options.headers,
     };
   }
