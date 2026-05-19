@@ -242,6 +242,7 @@
     "get_table"
     "get_table_field_values"
     "query"
+    "read_resource"
     "render_drill_through"
     "search"
     "update_dashboard"
@@ -660,6 +661,7 @@
    invocation check."
   #{"get_table" "get_table_field_values" "get_metric" "get_metric_field_values"
     "search" "construct_query" "query" "execute_query" "execute_sql"
+    "read_resource"
     "create_question" "create_dashboard"
     "update_question" "update_dashboard" "create_collection"})
 
@@ -706,6 +708,8 @@
                   _              (call-tool session-id "execute_sql"
                                             {:database_id (mt/id)
                                              :sql         "SELECT 1"})
+                  _              (call-tool session-id "read_resource"
+                                            {:uris ["metabase://databases"]})
                   ;; Write tools — record IDs as soon as they're known so the `finally` block
                   ;; can clean up even if a later step throws.
                   question-data  (call-tool session-id "create_question"
