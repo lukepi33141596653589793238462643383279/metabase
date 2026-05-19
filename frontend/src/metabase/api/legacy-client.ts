@@ -22,10 +22,16 @@ let ANTI_CSRF_TOKEN: string | null = null;
 let LOCALE: string | null = null;
 
 type ResponseTransformer = (opts: {
-  body: object;
-  data?: Record<string, unknown>;
-  response?: Response;
-}) => Response | undefined;
+  /**
+   * The decoded response body: `JSON.parse(bodyText)` if it parses, otherwise
+   * the raw text. Whatever this transformer returns replaces it.
+   */
+  body: unknown;
+  /** The original request data the caller passed in. */
+  data: Record<string, unknown>;
+  /** A cloned, unread `Response` for callers that need raw headers or stream. */
+  response: Response;
+}) => unknown;
 
 type RequestOptions = {
   noEvent?: boolean;
@@ -325,7 +331,7 @@ export class LegacyApi extends EventEmitter {
 
       const unreadResponse = response.clone();
       const bodyText = await response.text();
-      let body: string | Response | undefined = bodyText;
+      let body: unknown = bodyText;
 
       try {
         body = JSON.parse(bodyText);
@@ -346,7 +352,7 @@ export class LegacyApi extends EventEmitter {
       if (status >= 200 && status <= 299) {
         if (options.transformResponse) {
           body = options.transformResponse({
-            body: body as Response,
+            body,
             data,
             response: unreadResponse,
           });
@@ -481,10 +487,7 @@ function isRetriableError(error: unknown): boolean {
   return getErrorStatus(error) === 503;
 }
 
-function getResponseStatus(
-  response: Response,
-  body: string | Response | undefined,
-): number {
+function getResponseStatus(response: Response, body: unknown): number {
   if (
     response.status === 202 &&
     body &&
