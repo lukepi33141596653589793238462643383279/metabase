@@ -92,7 +92,9 @@ export class LegacyApi extends EventEmitter {
     this.PUT = this._makeMethod("PUT", false);
   }
 
-  getClientHeaders(): Record<string, string> {
+  getClientHeaders(
+    extraHeaders: Record<string, string> = {},
+  ): Record<string, string> {
     const self = this;
     const headers: Record<string, string> = {
       Accept: "application/json",
@@ -138,7 +140,10 @@ export class LegacyApi extends EventEmitter {
       headers["traceparent"] = traceparent;
     }
 
-    return headers;
+    return {
+      ...headers,
+      ...extraHeaders,
+    };
   }
 
   _makeMethod(methodTemplate: string, retry: boolean = false): MethodCreator {
@@ -188,7 +193,7 @@ export class LegacyApi extends EventEmitter {
           body = JSON.stringify(data);
         }
 
-        const headers = this._buildHeaders(options);
+        const headers = this.getClientHeaders(options.headers);
 
         return this._dispatch({
           method,
@@ -285,7 +290,7 @@ export class LegacyApi extends EventEmitter {
       url += (url.indexOf("?") >= 0 ? "&" : "?") + qs;
     }
 
-    const headers = this._buildHeaders(options);
+    const headers = this.getClientHeaders(options.headers);
     if (bodyIsRaw) {
       // Let the browser set Content-Type with the multipart boundary
       // (FormData) or urlencoded charset (URLSearchParams).
@@ -303,13 +308,6 @@ export class LegacyApi extends EventEmitter {
       options,
       retry: false,
     });
-  }
-
-  _buildHeaders(options: RequestOptions): Record<string, string> {
-    return {
-      ...this.getClientHeaders(),
-      ...options.headers,
-    };
   }
 
   _dispatch({
