@@ -230,27 +230,13 @@ export class LegacyApi extends EventEmitter {
     url: urlTemplate,
     body: requestBody,
     params,
-    signal,
-    noEvent,
-    transformResponse,
-    headers: headerOverrides,
+    ...invocationOptions
   }: {
     method: RequestMethod;
     url: string;
     body?: unknown;
     params?: Record<string, unknown>;
-    signal?: AbortSignal;
-    noEvent?: boolean;
-    transformResponse?: ResponseTransformer<T>;
-    headers?: Record<string, string>;
-  }): Promise<T> {
-    const invocationOptions = {
-      signal,
-      noEvent,
-      transformResponse,
-      headers: headerOverrides,
-    };
-
+  } & RequestOptions<T>): Promise<T> {
     const middlewareResult = await this.apiRequestManipulationMiddleware({
       url: urlTemplate,
       method: methodTemplate,
