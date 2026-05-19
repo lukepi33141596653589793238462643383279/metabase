@@ -1,4 +1,5 @@
 import { sessionPropertiesPath } from "metabase/api";
+import type { RequestMethod } from "metabase/api/legacy-client";
 import {
   PLUGIN_API,
   PLUGIN_CONTENT_TRANSLATION,
@@ -45,7 +46,7 @@ const EMBED_URL_TRANSFORMATIONS: Record<
   string,
   (data: { embedType: EmbedType }) => {
     url: string;
-    method: "GET" | "POST";
+    method: RequestMethod;
   }
 > = {
   [URL_PATTERNS.CARD_QUERY]: ({ embedType }) => ({
@@ -83,7 +84,7 @@ const EMBED_URL_TRANSFORMATIONS: Record<
 } as const;
 
 type RequestData = {
-  method: "GET" | "POST";
+  method: RequestMethod;
   url: string;
   options: {
     headers?: Record<string, string>;
