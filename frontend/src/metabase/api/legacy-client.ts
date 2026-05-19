@@ -399,13 +399,9 @@ export class LegacyApi extends EventEmitter {
     data: Record<string, unknown>,
     options: RequestOptions,
   ): Promise<unknown> {
-    // Get a copy of the delay intervals that we can pop items from as we retry
-    const retryDelays = RETRY_DELAY_INTERVALS.slice().reverse();
-    let retryCount = 0;
-    // maxAttempts is the first attempt followed by the number of retries
-    const maxAttempts = MAX_RETRIES + 1;
-    // Make the first attempt for the request, then loop incrementing the retryCount
-    do {
+    // Attempt the request; on 503 retry up to MAX_RETRIES times, waiting for
+    // each successive backoff interval before the next attempt.
+    for (let attempt = 0; ; attempt++) {
       try {
         return await this._makeRequest(
           method,
@@ -415,20 +411,14 @@ export class LegacyApi extends EventEmitter {
           data,
           options,
         );
-      } catch (e: unknown) {
-        retryCount++;
-        // If the response is 503 and the next retry won't put us over the maxAttempts,
-        // wait a bit and try again
-        if (
-          (e as { status?: number }).status === 503 &&
-          retryCount < maxAttempts
-        ) {
-          await delay(retryDelays.pop() ?? 0);
-        } else {
-          throw e;
+      } catch (error) {
+        if (getErrorStatus(error) !== 503 || attempt >= MAX_RETRIES) {
+          throw error;
         }
+        // Await the delay and try again
+        await delay(RETRY_DELAY_INTERVALS[attempt]);
       }
-    } while (retryCount < maxAttempts);
+    }
   }
 
   async _makeRequest(
@@ -617,3 +607,15 @@ export const setLocaleHeader = (locale: string | null | undefined): void => {
    */
   DEFAULT_OPTIONS.headers["X-Metabase-Locale"] = locale ?? undefined!;
 };
+
+function getErrorStatus(error: unknown): number | undefined {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof error.status === "number"
+  ) {
+    return error.status;
+  }
+  return undefined;
+}
