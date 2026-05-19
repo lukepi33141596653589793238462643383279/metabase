@@ -21,7 +21,7 @@ const METABASE_VERSION_HEADER = "X-Metabase-Version";
 let ANTI_CSRF_TOKEN: string | null = null;
 let LOCALE: string | null = null;
 
-type ResponseTransformer = (opts: {
+type ResponseTransformer<T = unknown> = (opts: {
   /**
    * The decoded response body: `JSON.parse(bodyText)` if it parses, otherwise
    * the raw text. Whatever this transformer returns replaces it.
@@ -31,11 +31,11 @@ type ResponseTransformer = (opts: {
   data: Record<string, unknown>;
   /** A cloned, unread `Response` for callers that need raw headers or stream. */
   response: Response;
-}) => unknown;
+}) => T;
 
-type RequestOptions = {
+type RequestOptions<T = unknown> = {
   noEvent?: boolean;
-  transformResponse?: ResponseTransformer;
+  transformResponse?: ResponseTransformer<T>;
   headers?: Record<string, string>;
   signal?: AbortSignal;
 };
@@ -227,7 +227,7 @@ export class LegacyApi extends EventEmitter {
    *
    * No method-derived guesswork about whether data is body or querystring.
    */
-  async request({
+  async request<T = unknown>({
     method,
     url: urlTemplate,
     body: requestBody,
@@ -243,9 +243,9 @@ export class LegacyApi extends EventEmitter {
     params?: Record<string, unknown>;
     signal?: AbortSignal;
     noEvent?: boolean;
-    transformResponse?: ResponseTransformer;
+    transformResponse?: ResponseTransformer<T>;
     headers?: Record<string, string>;
-  }): Promise<unknown> {
+  }): Promise<T> {
     const invocationOptions = {
       signal,
       ...(noEvent !== undefined ? { noEvent } : {}),
@@ -307,17 +307,17 @@ export class LegacyApi extends EventEmitter {
 
     // RTK callers don't retry; matches the prior behavior where apiQuery never
     // opted into retries.
-    return this._makeRequest(finalMethod, url, headers, body, data, options);
+    return this._makeRequest<T>(finalMethod, url, headers, body, data, options);
   }
 
-  async _makeRequest(
+  async _makeRequest<T = unknown>(
     method: string,
     url: string,
     headers: Record<string, string>,
     requestBody: string | FormData | URLSearchParams | undefined,
     data: Record<string, unknown>,
-    options: RequestOptions,
-  ): Promise<unknown> {
+    options: RequestOptions<T>,
+  ): Promise<T> {
     const requestUrl = new URL(this.basename + url, location.origin);
     const request = new Request(requestUrl.href, {
       method,
@@ -350,14 +350,11 @@ export class LegacyApi extends EventEmitter {
       }
 
       if (status >= 200 && status <= 299) {
-        if (options.transformResponse) {
-          body = options.transformResponse({
-            body,
-            data,
-            response: unreadResponse,
-          });
-        }
-        return body;
+        // If a transformer is given its return value IS `T`. Otherwise the raw
+        // body is `unknown`; we trust the caller's `T` annotation.
+        return options.transformResponse
+          ? options.transformResponse({ body, data, response: unreadResponse })
+          : (body as T);
       } else {
         if (this.onResponseError) {
           this.onResponseError({ body, status, metabaseVersion });
