@@ -307,9 +307,11 @@ export class LegacyApi extends EventEmitter {
 
       if (!options.noEvent) {
         // Strip basename so listeners (app-main.js) see the relative path.
-        const emitPath = url.pathname.startsWith(this.basename)
-          ? url.pathname.slice(this.basename.length)
-          : url.pathname;
+        const basenamePath = getBasenamePath(this.basename);
+        const emitPath =
+          basenamePath && url.pathname.startsWith(basenamePath)
+            ? url.pathname.slice(basenamePath.length)
+            : url.pathname;
         this.emit(String(status), emitPath + url.search);
       }
 
@@ -461,6 +463,20 @@ function getResponseStatus(response: Response, body: unknown): number {
   }
 
   return response.status;
+}
+
+// Basename can be a path prefix ("/metabase") or a full URL with an optional
+// subpath ("http://localhost/mb"). The status-code emit needs the path portion
+// only — listeners expect "/api/..." regardless of how the host is wired.
+function getBasenamePath(basename: string): string {
+  if (!basename) {
+    return "";
+  }
+  try {
+    return new URL(basename).pathname.replace(/\/$/, "");
+  } catch {
+    return basename.replace(/\/$/, "");
+  }
 }
 
 async function getResponseBody(response: Response): Promise<unknown> {
