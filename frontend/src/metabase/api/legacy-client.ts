@@ -26,13 +26,15 @@ const METABASE_VERSION_HEADER = "X-Metabase-Version";
 let ANTI_CSRF_TOKEN: string | null = null;
 let LOCALE: string | null = null;
 
+type ResponseTransformer = (opts: {
+  body: object;
+  data?: Record<string, unknown>;
+  response?: Response;
+}) => Response | undefined;
+
 type RequestOptions = {
   noEvent?: boolean;
-  transformResponse?: (opts: {
-    body: object;
-    data?: Record<string, unknown>;
-    response?: Response;
-  }) => Response | undefined;
+  transformResponse?: ResponseTransformer;
   headers?: Record<string, string>;
   signal?: AbortSignal;
 };
@@ -51,13 +53,7 @@ type ApiMethod = (
 
 type MethodCreator = (
   urlTemplate: string,
-  methodOptions?:
-    | RequestOptions
-    | ((opts: {
-        body: object;
-        data?: Record<string, unknown>;
-        response?: Response;
-      }) => Response | undefined),
+  methodOptions?: RequestOptions | ResponseTransformer,
 ) => ApiMethod;
 
 type ResponseErrorInfo = {
@@ -237,7 +233,7 @@ export class LegacyApi extends EventEmitter {
     params?: Record<string, unknown>;
     signal?: AbortSignal;
     noEvent?: boolean;
-    transformResponse?: RequestOptions["transformResponse"];
+    transformResponse?: ResponseTransformer;
     headers?: Record<string, string>;
   }): Promise<unknown> {
     const invocationOptions = {
