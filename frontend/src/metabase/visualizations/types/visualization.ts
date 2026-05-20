@@ -225,6 +225,7 @@ export type VisualizationPassThroughProps = {
   isQueryBuilder?: boolean;
   queryBuilderMode?: QueryBuilderMode;
   zoomedRowIndex?: number;
+  onZoomRow?: (rowIndex: number) => void;
   onDeselectTimelineEvents?: () => void;
   onOpenTimelines?: () => void;
   onSelectTimelineEvents?: (timelineEvents: TimelineEvent[]) => void;
