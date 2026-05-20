@@ -734,7 +734,7 @@
                                           conversation-id
                                           "transforms_codegen"
                                           {:role "user" :content "make a SQL transform"})]
-          (with-redefs [nqa/tables-for-native (fn [_ & _] {:tables [{:table-id orders-id}]})]
+          (mt/with-dynamic-fn-redefs [nqa/tables-for-native (fn [_ & _] {:tables [{:table-id orders-id}]})]
             (metabot-persistence/finalize-assistant-turn!
              conversation-id
              assistant-msg-id
