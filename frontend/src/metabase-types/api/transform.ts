@@ -58,6 +58,27 @@ export type SuggestedTransform = Partial<Pick<Transform, "id">> &
 
 export type PythonTransformTableAliases = Record<string, ConcreteTableId>;
 
+/**
+ * A Transform from the global transforms module, tagged for discrimination.
+ */
+export type TaggedTransform = Transform & { type: "transform" };
+
+/**
+ * An unsaved transform that exists only in the UI state.
+ * Uses a numeric id (negative) for temporary identification.
+ */
+export type UnsavedTransform = {
+  type: "unsaved-transform";
+  id: number;
+  name: string;
+  source: DraftTransformSource;
+  target: {
+    name: string;
+    schema: string | null;
+    type: TransformTargetType;
+  };
+};
+
 export type TransformSourceCheckpointStrategy = {
   type: "checkpoint";
   "checkpoint-filter-field-id": number;
