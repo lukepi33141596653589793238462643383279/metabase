@@ -40,10 +40,22 @@
   ([^OutputStream os ^bytes ba ^Integer offset ^Integer len]
    (.write os ba offset len)))
 
-(defn- ex-status-code [e]
-  (or (some #((some-fn :status-code :status) (ex-data %))
-            (take-while some? (iterate ex-cause e)))
-      500))
+(defn- ex-status-code
+  "Status code to embed as `_status` in a streamed error body.
+
+  The frontend api client reads `_status` to recover the real status of an error
+  that occurred after the 202 was already committed. It must never be 401 or 403:
+  those would trip the client's global auth handlers (401 -> redirect to login,
+  403 -> not-authorized page) from what is really a query result. Any error
+  reaching here has already passed auth (the 202 was sent), so collapse those to
+  a generic 500. The frontend has a matching guard; this is the source-side one."
+  [e]
+  (let [status (or (some #((some-fn :status-code :status) (ex-data %))
+                         (take-while some? (iterate ex-cause e)))
+                   500)]
+    (if (#{401 403} status)
+      500
+      status)))
 
 (defn- format-exception [e]
   (cond-> (assoc (Throwable->map e) :_status (ex-status-code e))

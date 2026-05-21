@@ -271,6 +271,26 @@
         ;; Should not throw exception when no response is bound
         (is (some? (streaming-response/write-error! os {:error "test error"} :api 500)))))))
 
+(deftest ex-status-code-never-returns-auth-status-test
+  (testing "the streamed `_status` never claims an auth failure"
+    ;; A `_status` of 401/403 would trip the frontend's global auth handlers
+    ;; (401 -> redirect to login, 403 -> not-authorized page) from what is really
+    ;; a query result. Any error reaching here already passed auth, so 401/403
+    ;; collapse to 500.
+    (let [ex-status-code #'streaming-response/ex-status-code]
+      (are [expected ex] (= expected (ex-status-code ex))
+        500 (ex-info "nope" {:status-code 403})
+        500 (ex-info "nope" {:status-code 401})
+        500 (ex-info "nope" {:status 403})
+        500 (ex-info "nope" {:status 401})
+        ;; 401/403 anywhere in the cause chain is collapsed too
+        500 (ex-info "wrap" {} (ex-info "inner" {:status-code 403}))
+        ;; non-auth statuses pass through unchanged
+        400 (ex-info "bad" {:status-code 400})
+        503 (ex-info "down" {:status 503})
+        ;; default when no status is present
+        500 (ex-info "boom" {})))))
+
 (deftest set-status-outside-streaming-context-test
   (testing "Calling set-status! outside a streaming-response context should raise"
     (is (thrown-with-msg?
