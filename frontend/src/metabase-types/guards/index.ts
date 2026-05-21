@@ -5,4 +5,3 @@ export * from "./dom";
 export * from "./parameters";
 export * from "./react";
 export * from "./settings";
-export * from "./workspace";
