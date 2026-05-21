@@ -1,6 +1,6 @@
 import fetchMock from "fetch-mock";
 
-import { LegacyApi } from "./legacy-client";
+import { ApiClient } from "./client";
 
 type OnBeforeRequestHandlerData = {
   method: "GET" | "POST" | "PUT" | "DELETE";
@@ -12,10 +12,10 @@ type OnBeforeRequestHandlerData = {
 
 describe("api", () => {
   describe("apiRequestManipulationMiddleware", () => {
-    let apiInstance: LegacyApi;
+    let apiInstance: ApiClient;
 
     beforeEach(() => {
-      apiInstance = new LegacyApi();
+      apiInstance = new ApiClient();
     });
 
     it("should return the original data when there are no handlers", async () => {
@@ -322,10 +322,10 @@ describe("api", () => {
   });
 
   describe("request (RTK entry point)", () => {
-    let apiInstance: LegacyApi;
+    let apiInstance: ApiClient;
 
     beforeEach(() => {
-      apiInstance = new LegacyApi();
+      apiInstance = new ApiClient();
     });
 
     afterEach(() => {
@@ -491,10 +491,10 @@ describe("api", () => {
   });
 
   describe("request cancellation", () => {
-    let apiInstance: LegacyApi;
+    let apiInstance: ApiClient;
 
     beforeEach(() => {
-      apiInstance = new LegacyApi();
+      apiInstance = new ApiClient();
     });
 
     afterEach(() => {
@@ -541,10 +541,10 @@ describe("api", () => {
   });
 
   describe("status-code event emit", () => {
-    let apiInstance: LegacyApi;
+    let apiInstance: ApiClient;
 
     beforeEach(() => {
-      apiInstance = new LegacyApi();
+      apiInstance = new ApiClient();
     });
 
     afterEach(() => {
