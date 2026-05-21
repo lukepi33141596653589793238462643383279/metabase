@@ -562,7 +562,6 @@
            metabase.driver.sql-jdbc.execute
            metabase.driver.sql-jdbc.execute.diagnostic
            metabase.driver.sql-jdbc.sync
-           metabase.driver.sql.normalize
            metabase.driver.sql.query-processor
            metabase.driver.sql.util
            metabase.driver.sync
@@ -2487,7 +2486,7 @@
   enterprise/workspaces
   {:team "Metabot"
    :api  #{}
-   :uses #{premium-features}}
+   :uses #{}}
 
   enterprise/writable-connection
   {:team "Querying"
