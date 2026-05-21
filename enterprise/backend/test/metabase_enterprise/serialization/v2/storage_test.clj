@@ -42,7 +42,7 @@
 
           (testing "the Collections properly exported"
             (is (= (-> (into {} (t2/select-one :model/Collection :id (:id parent)))
-                       (dissoc :id :location)
+                       (dissoc :id :location :workspace_id)
                        (assoc :parent_id nil)
                        (update :created_at t/offset-date-time))
                    (-> (yaml/from-file (io/file dump-dir "collections" parent-filename (str parent-filename ".yaml")))
@@ -50,7 +50,7 @@
                        (update :created_at t/offset-date-time))))
 
             (is (= (-> (into {} (t2/select-one :model/Collection :id (:id child)))
-                       (dissoc :id :location)
+                       (dissoc :id :location :workspace_id)
                        (assoc :parent_id (:entity_id parent))
                        (update :created_at t/offset-date-time))
                    (-> (yaml/from-file (io/file dump-dir "collections" parent-filename
