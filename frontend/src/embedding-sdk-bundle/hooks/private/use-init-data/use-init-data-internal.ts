@@ -113,8 +113,8 @@ export const useInitDataInternal = ({
     api.beforeRequestHandlers.push(reactSdkEmbedReferrerHandler);
   }
 
-  if (!api.onResponseError) {
-    api.onResponseError = ({ metabaseVersion }) => {
+  if (api.listenerCount("responseError") === 0) {
+    api.on("responseError", ({ metabaseVersion }) => {
       if (metabaseVersion == null) {
         return;
       }
@@ -124,7 +124,7 @@ export const useInitDataInternal = ({
         .internalProps.reduxStore?.dispatch(
           setMetabaseInstanceVersion(metabaseVersion),
         );
-    };
+    });
   }
 
   useEffect(() => {
