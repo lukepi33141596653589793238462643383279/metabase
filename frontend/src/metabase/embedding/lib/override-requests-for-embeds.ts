@@ -86,9 +86,7 @@ const EMBED_URL_TRANSFORMATIONS: Record<
 type RequestData = {
   method: RequestMethod;
   url: string;
-  options: {
-    headers?: Record<string, string>;
-  } & Record<string, unknown>;
+  headers?: Record<string, string>;
 };
 
 /**
@@ -129,7 +127,7 @@ function getRequestTransformation({
   method,
   embedType,
   url,
-  options,
+  headers,
 }: RequestData & { embedType: EmbedType }): RequestData | null {
   const matchedPattern = findMatchingPattern(url);
 
@@ -143,7 +141,7 @@ function getRequestTransformation({
 
   // No transformation needed if pattern doesn't match
   if (!matchedPattern) {
-    return { method, url, options };
+    return { method, url, headers };
   }
 
   // Apply the transformation for this pattern
@@ -151,12 +149,12 @@ function getRequestTransformation({
     embedType,
   });
   if (!transformation) {
-    return { method, url, options };
+    return { method, url, headers };
   }
 
   return {
     ...transformation,
-    options,
+    headers,
   };
 }
 
@@ -183,7 +181,7 @@ const overrideRequests = async ({
   embedType,
   method,
   url,
-  options,
+  headers,
   data,
 }: OnBeforeRequestHandlerConfig & {
   embedType: EmbedType;
@@ -192,21 +190,17 @@ const overrideRequests = async ({
     method,
     embedType,
     url,
-    options,
+    headers,
   });
 
   if (!transformation) {
-    return { method, url, options, data };
-  }
-
-  if (!options.headers) {
-    options.headers = {};
+    return { method, url, headers, data };
   }
 
   return {
     method: transformation.method,
     url: replaceWithEmbedBase({ embedType, url: transformation.url }),
-    options: transformation.options,
+    headers: transformation.headers ?? {},
     data,
   };
 };
