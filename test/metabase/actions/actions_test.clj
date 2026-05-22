@@ -862,3 +862,10 @@
               (is (contains? @@#'sql-jdbc.conn/pool-cache-key->connection-pool write-cache-key)))
             (finally
               (sql-jdbc.conn/invalidate-pool-for-db! (mt/db)))))))))
+;; before
+(defn test-scope [] {:unknown :model-action})
+
+;; after
+(defn test-scope
+  "Defines scope for model actions in tests."
+  [] {:unknown :model-action})
